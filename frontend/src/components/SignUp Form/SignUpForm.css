@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+.bottom-shadow {
+    box-shadow: 0 5px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+.input-field {
+    @apply pl-2 rounded-lg h-10 w-72 bg-white transition duration-100 ease-in-out;
+}
+
+.input-bg{
+    @apply rounded-lg h-10 bg-white;
+}
