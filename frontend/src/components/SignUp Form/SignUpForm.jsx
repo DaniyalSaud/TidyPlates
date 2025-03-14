@@ -15,7 +15,7 @@ function SignUpForm() {
         } else if (formPage === 1) {
             return <SignUpHealth setFormPage={setFormPage} />
         } else if (formPage === 2) {
-            return <SignUpPreference />
+            return <SignUpPreference setFormPage={setFormPage} />
         }
     }
 

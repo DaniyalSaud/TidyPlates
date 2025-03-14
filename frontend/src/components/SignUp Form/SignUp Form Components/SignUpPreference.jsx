@@ -1,6 +1,6 @@
 import React from 'react'
 
-function SignUpPreference() {
+function SignUpPreference({setFormPage}) {
   return (
     <div>SignUpPreference</div>
   )

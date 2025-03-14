@@ -1,15 +1,15 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { createBrowserRouter, RouterProvider } from "react-router";
-import App from "./App";
 import SignUpForm from "./components/SignUp Form/SignUpForm";
+import LandingPage from "./components/Landing Page/LandingPage";
 
 
 
 const router = createBrowserRouter([
   {
     path: '/',
-    element: <App />
+    element: <LandingPage/>
   },
   {
     path: '/signup',
