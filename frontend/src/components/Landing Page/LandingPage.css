@@ -8,3 +8,20 @@
     @apply h-10 w-24 text-center transition ease-in-out text-black/70 hover:text-black rounded-lg px-3 py-2;
 }
 
+.landing-top{
+    width: 100vw;
+    height: 100vh;
+    background-image: url('./Landing Page Assets/landing-page-top.png');
+    background-size: auto;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.landing-page-mid-b{
+    background-image: url('./Landing Page Assets/landing-page-vector-pink.png');
+    background-size: contain;
+    background-position: left;
+    background-repeat: no-repeat;
+    width: 100vw;
+    height: 60vh;
+}
