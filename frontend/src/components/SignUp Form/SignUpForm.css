@@ -11,3 +11,11 @@
 .input-bg{
     @apply rounded-lg h-10 bg-white;
 }
+
+.input-white-bg{
+    @apply rounded-lg bg-white;
+}
+
+.sign-up-form-top-heading{
+    @apply text-2xl font-bold;
+}

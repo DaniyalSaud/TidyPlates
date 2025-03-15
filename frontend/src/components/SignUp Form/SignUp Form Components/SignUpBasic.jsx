@@ -1,6 +1,16 @@
 import React from 'react'
 
-function SignUpBasic({setFormPage}) {
+function SignUpBasic({ setFormPage }) {
+    const handleFormChange = () => {
+        setFormPage(curr => curr + 1);
+        window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
+    const handleGoBack = () => {
+        setFormPage(curr => curr - 1);
+        window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
     return (
         <>
             <div className="top-info">
@@ -11,7 +21,7 @@ function SignUpBasic({setFormPage}) {
             <div className="basic-form-box bg-gray-300 rounded-lg mx-auto w-2/5 pt-8 pb-8 flex">
                 <div className="w-92 pl-10 pr-10">
                     <form action="index.html" method="post">
-                        <h1 className="text-2xl font-bold pb-8">Basic Information</h1>
+                        <h1 className="sign-up-form-top-heading pb-8">Basic Information</h1>
 
                         <div className="flex flex-col gap-4 w-full">
                             <div className="flex flex-col gap-1">
@@ -43,8 +53,9 @@ function SignUpBasic({setFormPage}) {
                             <a className="text-sm hover:text-blue-900 hover:underline pl-1" href="#">Already have an account? Sign in</a>
 
                             <div className="pt-4 ml-auto">
-                                <button onClick={()=>{setFormPage(curr => curr + 1);
-                                     window.scrollTo({ top: 0, behavior: "smooth" });
+                                <button onClick={() => {
+                                    setFormPage(curr => curr + 1);
+                                    window.scrollTo({ top: 0, behavior: "instant" });
                                 }} type="submit" className="bg-white bottom-shadow h-10 rounded-lg w-20 hover:bg-gray-200 transition duration-100 ease-in-out active:bg-gray-300 cursor-pointer">Continue</button>
                             </div>
 

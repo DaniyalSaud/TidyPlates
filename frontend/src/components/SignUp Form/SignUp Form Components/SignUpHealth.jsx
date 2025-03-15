@@ -2,19 +2,20 @@ import React from "react";
 import SignupProgress from "./SignupProgress";
 
 const SignUpHealth = ({ setFormPage }) => {
+  const handleFormChange = () => {
+    setFormPage(curr => curr + 1);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
 
-    const handleFormChange = () =>{
-
-    }
-
-    const handleGoBack = () => {
-        
-    }
+  const handleGoBack = () => {
+    setFormPage(curr => curr - 1);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
 
   return (
     <>
-      <div className="health-data w-4/5 mx-auto rounded-lg shadow-lg bg-gray-50">
-        <h1 className="text-2xl font-bold pb-8">Health Data</h1>
+      <div className="health-data w-4/5 mx-auto rounded-lg shadow-lg bg-gray-50 pt-4 pb-4 pl-10 pr-10">
+        <h1 className="sign-up-form-top-heading pb-8">Health Data</h1>
         <form action="">
           <div className="flex justify-between items-start gap-4">
             <div className="flex flex-col gap-2 justify-center items-center">
@@ -193,21 +194,33 @@ const SignUpHealth = ({ setFormPage }) => {
             </h1>
             <div className="grid grid-cols-2 gap-4 justify-items-center items-center">
               <div className="input-bg bottom-shadow w-52 flex items-center justify-between pl-4 pr-4">
-                <label htmlFor="">Low Sugar</label>
+                <label htmlFor="low-sugar">Low Sugar</label>
                 <input type="radio" name="low-sugar" id="low-sugar" />
               </div>
               <div className="input-bg bottom-shadow w-52 flex items-center justify-between pl-4 pr-4">
-                <label htmlFor="">Low Sodium</label>
+                <label htmlFor="low-sugar">Low Sodium</label>
                 <input type="radio" name="low-sodium" id="low-sodium" />
               </div>
               <div className="input-bg bottom-shadow w-52 flex items-center justify-between pl-4 pr-4">
-                <label htmlFor="">High Protein</label>
+                <label htmlFor="high-protein">High Protein</label>
                 <input type="radio" name="high-protein" id="high-protein" />
               </div>
               <div className="input-bg bottom-shadow w-52 flex items-center justify-between pl-4 pr-4">
-                <label htmlFor="">Low Fat</label>
+                <label htmlFor="low-fat">Low Fat</label>
                 <input type="radio" name="low-fat" id="low-fat" />
               </div>
+            </div>
+          </div>
+
+          <div>
+            <h1 className="text-xl font-medium pt-4">Medications Affecting Diet (Optional)</h1>
+            <div className="extra-allergy flex justify-between items-center pt-4 pb-4">
+              <textarea
+                className="resize-none rounded-lg bg-white h-40 bottom-shadow p-2 w-3/5 mx-auto"
+                type="text"
+                placeholder="Example: Taking insulin or on a low-sodium diet per doctor's advice"
+              />
+
             </div>
           </div>
 
@@ -218,26 +231,26 @@ const SignUpHealth = ({ setFormPage }) => {
             <div className="grid grid-cols-2 gap-4 justify-items-center items-center">
               <div className="input-bg bottom-shadow w-52 flex items-center gap-4 pl-4">
                 <input type="radio" name="weight-loss" id="weight-loss" />
-                <label htmlFor="">Weight Loss</label>
+                <label htmlFor="weight-loss">Weight Loss</label>
               </div>
               <div className="input-bg bottom-shadow w-52 flex items-center gap-4 pl-4">
                 <input type="radio" name="weight-gain" id="weight-gain" />
-                <label htmlFor="">Weight Gain</label>
+                <label htmlFor="weight-gain">Weight Gain</label>
               </div>
               <div className="input-bg bottom-shadow w-52 flex items-center gap-4 pl-4">
                 <input type="radio" name="maintain-weight" id="maintain-weight" />
-                <label htmlFor="">Maintain Weight</label>
+                <label htmlFor="maintain-weight">Maintain Weight</label>
               </div>
               <div className="input-bg bottom-shadow w-52 flex items-center gap-4 pl-4">
                 <input type="radio" name="blood-sugar" id="blood-sugar" />
-                <label htmlFor="">Improve Blood Sugar</label>
+                <label htmlFor="blood-sugar">Improve Blood Sugar</label>
               </div>
             </div>
           </div>
 
-          <div>
-            <button>Previous</button>
-            <button>Continue</button>
+          <div className="flex  items-center justify-between pt-10">
+            <button onClick={handleGoBack} type="submit" className="bg-white bottom-shadow h-10 rounded-lg w-20 hover:bg-gray-200 transition duration-100 ease-in-out active:bg-gray-300 cursor-pointer">Previous</button>
+            <button onClick={handleFormChange} type="submit" className="bg-white bottom-shadow h-10 rounded-lg w-20 hover:bg-gray-200 transition duration-100 ease-in-out active:bg-gray-300 cursor-pointer">Continue</button>
           </div>
         </form>
       </div>
