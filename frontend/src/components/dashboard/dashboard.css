@@ -1,3 +1,7 @@
 .nav-width{
     width: 16rem;
 }
+
+.nav-icon-shadow{
+    box-shadow: 0 4px 2px -1px rgba(0,0,0,0.2);
+}

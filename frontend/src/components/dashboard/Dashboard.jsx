@@ -6,10 +6,12 @@ import './dashboard.css'
 function Dashboard() {
   return (
     <>
-    <div>
-        <NavigationMenu/>
-        <Outlet />
-    </div>
+      <div className='h-screen flex'>
+        <NavigationMenu />
+        <div className='h-full grow'>
+          <Outlet />
+        </div>
+      </div>
     </>
   )
 }

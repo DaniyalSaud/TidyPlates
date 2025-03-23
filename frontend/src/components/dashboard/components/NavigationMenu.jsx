@@ -5,12 +5,12 @@ import { NavLink } from 'react-router'
 function NavigationMenu() {
   return (
     <>
-      <nav className='bg-slate-200 h-screen nav-width px-6 py-6'>
+      <nav className='bg-slate-200 h-screen w-64 px-6 py-6'>
         <div className='flex items-center gap-4 pb-10'>
-          <div className='logo'>
+          <div className='brand-logo'>
             <img src="" className='h-10 w-10' alt="tidyplates logo here" />
           </div>
-          <NavLink to='main' className='logo-name text-2xl font-semibold text-indigo-900'>TidyPlates</NavLink>
+          <NavLink to='main' className='brand-name text-2xl font-semibold text-indigo-900'>TidyPlates</NavLink>
         </div>
 
         <div>

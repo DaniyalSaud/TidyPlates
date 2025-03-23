@@ -5,7 +5,8 @@ import SignUpForm from "./components/SignUp Form/SignUpForm";
 import LandingPage from "./components/Landing Page/LandingPage";
 import Dashboard from "./components/dashboard/Dashboard";
 import NavigationMenu from "./components/dashboard/components/NavigationMenu";
-import MainScreen from "./components/dashboard/components/MainScreen";
+import MainScreen from "./components/dashboard/pages/MainScreen";
+import './main.css'
 
 
 
@@ -48,6 +49,6 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
-    <RouterProvider router={router} />
+      <RouterProvider router={router} />
   </StrictMode>
 );

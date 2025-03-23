@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 
 .bottom-shadow {
     box-shadow: 0 5px 4px -1px rgba(0, 0, 0, 0.2);
