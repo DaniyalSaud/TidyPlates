@@ -5,7 +5,7 @@ import { NavLink } from 'react-router'
 function NavigationMenu() {
   return (
     <>
-      <nav className='bg-slate-200 h-screen w-64 px-6 py-6'>
+      <nav className='bg-slate-200 h-screen min-w-64 px-6 py-6'>
         <div className='flex items-center gap-4 pb-10'>
           <div className='brand-logo'>
             <img src="" className='h-10 w-10' alt="tidyplates logo here" />

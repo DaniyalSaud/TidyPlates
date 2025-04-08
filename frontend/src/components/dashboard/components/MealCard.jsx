@@ -2,7 +2,7 @@ import React from 'react'
 
 function MealCard({type, mealPath, mealName, mealNutrition, cookTime}) {
   return (
-    <div className='meal-card bg-white w-[20rem] rounded-md h-full flex flex-col gap-1 px-4 py-2'>
+    <div className='meal-card bg-white min-w-[20rem] rounded-md h-full flex flex-col gap-1 px-4 py-2'>
         <h1 className='text-lg font-medium'>{type}</h1>
         <div className='h-2/3 rounded-md relative'>
             <img className='w-full h-full rounded-md bg-slate-200' src={mealPath} alt="meal image" />

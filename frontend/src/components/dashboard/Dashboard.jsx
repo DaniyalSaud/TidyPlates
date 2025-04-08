@@ -8,9 +8,8 @@ function Dashboard() {
     <>
       <div className='h-screen flex'>
         <NavigationMenu />
-        <div className='h-full grow'>
-          <Outlet />
-        </div>
+        <Outlet />
+
       </div>
     </>
   )
