@@ -2,7 +2,7 @@ import React from 'react'
 import { Progress } from '@/components/ui/progress'
 function TodayMacro({ protein, carbs, fats }) {
     return (
-        <div className='h-64 w-96 bg-slate-100 rounded-md px-4 py-3'>
+        <div className='h-56 w-80 bg-slate-100 rounded-md px-4 py-3'>
             <h1 className='text-lg font-semibold'>Today's Macro</h1>
             <div className='flex flex-col gap-4 p-4'>
                 <div className='flex flex-col gap-2'>

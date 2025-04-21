@@ -12,7 +12,7 @@ function PlanningMealCard({type, time, mealName, calCount, imgPath}) {
 }
   
     return (
-    <div className='h-60 w-[26rem] rounded-lg flex flex-col gap-4 justify-start item-center bg-gray-200 py-4 px-7 shadow-lg shadow-black/20 transition-all ease-in-out hover:scale-[1.02]'>
+    <div className='h-50 w-[20rem] rounded-lg flex flex-col gap-4 justify-start item-center bg-gray-200 py-4 px-7 shadow-lg shadow-black/20 transition-all ease-in-out hover:scale-[1.02]'>
         
         <div className='top flex items-center justify-between'>
             <h1 className='text-xl font-semibold'>{type}</h1>
@@ -20,7 +20,7 @@ function PlanningMealCard({type, time, mealName, calCount, imgPath}) {
         </div>
 
         <div className='flex items-start justify-start gap-4 py-4'>
-            <img className='h-30 w-30 bg-amber-700' src={imgPath} alt={type + ' meal image'} />
+            <img className='h-24 w-24 bg-amber-700 rounded-sm' src={imgPath} alt={type + ' meal image'} />
             <div>
                 <h1 className='text-lg font-medium'>{mealName}</h1>
                 <h1 className='text-black/50 font-semibold'>{calCount}</h1>

@@ -28,7 +28,7 @@ export const deleteReminder = database.prepare(
     `
 );
 
-export const getRemindersByID = database.prepare(
+export const getAllRemindersByID = database.prepare(
     `SELECT * FROM Reminder WHERE userID = ?;
     `
 );
