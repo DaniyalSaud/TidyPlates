@@ -1,6 +1,10 @@
 import React from 'react'
 import NavigationItem from './NavigationItem'
 import { NavLink } from 'react-router'
+import BarChartIcon from '@mui/icons-material/BarChart';
+import CalendarTodayOutlinedIcon from '@mui/icons-material/CalendarTodayOutlined';
+import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined';
+import ShoppingCartOutlinedIcon from '@mui/icons-material/ShoppingCartOutlined';
 
 function NavigationMenu() {
   return (
@@ -16,10 +20,18 @@ function NavigationMenu() {
         <div>
 
           <ul className='flex flex-col gap-2'>
-            <NavigationItem route='main' title='Dashboard' img_path=''/>
-            <NavigationItem route='planning' title='Meal Planning' img_path=''/>
-            <NavigationItem route='schedule' title='Scheduling' img_path=''/>
-            <NavigationItem route='grocery' title='Grocery List' img_path=''/>
+            <NavigationItem route='main' title='Dashboard'>
+              <BarChartIcon className='text-black/70' fontSize='small'/>
+            </NavigationItem>
+            <NavigationItem route='planning' title='Meal Planning'>
+              <CalendarTodayOutlinedIcon className='text-black/70' fontSize='small' />
+            </NavigationItem>
+            <NavigationItem route='schedule' title='Scheduling'>
+              <AccessTimeOutlinedIcon className='text-black/70' fontSize='small' />
+            </NavigationItem>
+            <NavigationItem route='grocery' title='Grocery List'>
+              <ShoppingCartOutlinedIcon className='text-black/70' fontSize='small' />
+            </NavigationItem>
           </ul>
 
         </div>

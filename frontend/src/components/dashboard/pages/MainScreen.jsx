@@ -48,40 +48,44 @@ function MainScreen() {
       </div>
 
       <div className='flex justify-center items-center gap-6 pt-4'>
+
         <div className='h-56 bg-slate-100 w-96 rounded-md bg px-4 py-2'>
+
           <h1 className='text-lg font-medium'>Nutritional Breakdown</h1>
-          <div className='progress-bars flex flex-col gap-2 pt-6 px-2'>
-            <div className='flex items-center justify-between gap-4'>
+
+          <div className='progress-bars flex flex-col gap-2 pt-6 px-1'>
+            <div className='flex items-center justify-between gap-1'>
               <h1 className='w-20 text-sm font-medium text-black/70'>Calories</h1>
-              <div className='flex items-center gap-3 w-full'>
-                <Progress value={50} ProgressColor={'bg-indigo-900'} />
-                <h1 className='text-xs font-light text-black/60'>{}/2000Cal</h1>
+              <div className='flex items-center gap-1 w-full justify-between'>
+                <Progress value={50} ProgressColor={'bg-indigo-900'} className='w-[12rem]' />
+                <h1 className='text-xs font-light text-black/60'>{'100Cal'}/200Cal</h1>
               </div>
 
             </div>
-            <div className='flex items-center gap-4'>
+            <div className='flex items-center justify-between gap-1'>
               <h1 className='w-20 text-sm font-medium text-black/70'>Protein</h1>
-              <div className='flex items-center gap-3 w-full'>
-                <Progress value={50} ProgressColor={'bg-indigo-900'} />
-                <h1 className='text-xs font-light text-black/60'>{}/120g</h1>
+              <div className='flex items-center gap-1 w-full justify-between'>
+                <Progress value={50} ProgressColor={'bg-indigo-900'} className='w-[12rem]' />
+                <h1 className='text-xs font-light text-black/60'>{'100g'}/120g</h1>
               </div>
             </div>
-            <div className='flex items-center gap-4'>
+            <div className='flex items-center justify-between gap-1'>
               <h1 className='w-20 text-sm font-medium text-black/70'>Carbs</h1>
-              <div className='flex items-center gap-3 w-full'>
-                <Progress value={50} ProgressColor={'bg-indigo-900'} />
-                <h1 className='text-xs font-light text-black/60'>{}/300g</h1>
+              <div className='flex items-center gap-1 w-full justify-between'>
+                <Progress value={50} ProgressColor={'bg-indigo-900'} className='w-[12rem]' />
+                <h1 className='text-xs font-light text-black/60'>{'100g'}/300g</h1>
               </div>
             </div>
-            <div className='flex items-center gap-4'>
+            <div className='flex items-center justify-between gap-1'>
               <h1 className='w-20 text-sm font-medium text-black/70'>Fats</h1>
-              <div className='flex items-center gap-3 w-full'>
-                <Progress value={50} ProgressColor={'bg-indigo-900'} />
-                <h1 className='text-xs font-light text-black/60'>{}/50g</h1>
+              <div className='flex items-center gap-1 w-full justify-between'>
+                <Progress value={50} ProgressColor={'bg-indigo-900'} className='w-[12rem]' />
+                <h1 className='text-xs font-light text-black/60'>{'100g'}/50g</h1>
               </div>
             </div>
           </div>
         </div>
+
         <div className='h-56 bg-slate-100 w-96 rounded-md'>
           Weekly Progress
         </div>

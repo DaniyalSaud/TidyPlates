@@ -1,7 +1,36 @@
-.nav-width{
+.nav-width {
     width: 16rem;
 }
 
-.nav-icon-shadow{
-    box-shadow: 0 4px 2px -1px rgba(0,0,0,0.2);
+.nav-icon-shadow {
+    box-shadow: 0 4px 2px -1px rgba(0, 0, 0, 0.2);
+}
+
+/* Modern scrollbar styling */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    /* Firefox */
+    scrollbar-color: rgba(44, 43, 49, 0.5) rgba(226, 232, 240, 0.3);
+    /* Firefox: thumb track */
+}
+
+/* For Webkit browsers (Chrome, Safari, Edge) */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(54, 56, 59, 0.3);
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(58, 58, 63, 0.5);
+    border-radius: 10px;
+    transition: all 0.3s ease;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 15, 17, 0.7);
 }

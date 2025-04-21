@@ -7,7 +7,8 @@ import Dashboard from "./components/dashboard/Dashboard";
 import NavigationMenu from "./components/dashboard/components/NavigationMenu";
 import MainScreen from "./components/dashboard/pages/MainScreen";
 import './main.css'
-
+import PlanningScreen from "./components/dashboard/pages/PlanningScreen";
+import ScheduleScreen from "./components/dashboard/pages/ScheduleScreen";
 
 
 const router = createBrowserRouter([
@@ -33,11 +34,11 @@ const router = createBrowserRouter([
       },
       {
         path: 'planning',
-        element: <h1>Planning Tab</h1>
+        element: <PlanningScreen />
       },
       {
         path: 'schedule',
-        element: <h1>Schedule Tab</h1>
+        element: <ScheduleScreen />
       },
       {
         path: 'grocery',
