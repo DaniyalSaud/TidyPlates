@@ -1,6 +1,15 @@
 import sqlite3 from "sqlite3";
 
-const database = new sqlite3.Database("tidyplates.db");
+// Configure database with busy timeout and journal mode for better concurrency
+const database = new sqlite3.Database("tidyplates.db", (err) => {
+  if (err) console.error("Database connection error:", err.message);
+});
+
+// Set busy timeout to wait when database is locked (5 seconds)
+database.configure("busyTimeout", 5000);
+
+// Use WAL (Write-Ahead Logging) for better concurrency
+database.exec("PRAGMA journal_mode = WAL;");
 
 // Creating a simple user table for now, with username, email, and password
 database.exec(`
