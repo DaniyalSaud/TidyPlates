@@ -4,48 +4,80 @@ import { addNutritions } from '../models/Nutritions.js';
 import { addRecipe } from '../models/Recipe.js';
 import { addRecipeIngredient } from '../models/RecipeIngredient.js';
 import { generateMealPlans, formatMealPlan } from '../utils/mealGeneration.js';
+import { generateId } from '../utils/idGenerator.js';
 import { getUserByID } from '../models/User.js';
 import { getUserHealthDataByID } from '../models/UserHealth.js';
 import { getUserPreferenceByID } from '../models/UserPreference.js';
 
 const generatePlanID = async () => {
-    const planID = Math.floor(Math.random() * 1000000);
+    const planID = generateId('mealPlan');
     return planID;
 }
 
 const getUserMealPlans = async (req, res) => {
+    console.log("Fetching meal plans for user:", req.body.userID);
     try {
         const { userID } = req.body;
+        
+        if (!userID) {
+            return res.status(400).send({
+                status: 400,
+                message: "userID is required"
+            });
+        }
 
-        getAllMealPlansByID.all(userID, (err, rows) => {
-            if (err) {
-                console.error(err.message);
-                res.status(500).send({
-                    status: 500,
-                    message: "Error retrieving meal plans",
-                    error: err
-                });
-            } else {
-                // Check if the user has any meal plans
-                if (!rows || rows.length === 0) {
-                    return res.status(404).send({
-                        status: 404,
-                        message: "No meal plans found for this user. Please generate more meal plans."
-                    });
+        // Convert the callback-based DB call to a Promise
+        const mealPlans = await new Promise((resolve, reject) => {
+            getAllMealPlansByID.all(userID, (err, rows) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve(rows);
                 }
-                
-                res.status(200).send({
-                    status: 200,
-                    message: "Meal plans retrieved successfully",
-                    mealPlans: rows
-                });
-            }
+            });
+        });
+        
+        // Get today's date in YYYY-MM-DD format for comparison
+        const today = new Date().toISOString().split('T')[0];
+        console.log(`Looking for meal plan with date: ${today}`);
+        
+        // Check if there's a meal plan for today
+        const todayMealPlan = mealPlans.find(plan => plan.planDate === today);
+        
+        // Now that we have the data, we can send the response
+        if (!mealPlans || mealPlans.length === 0) {
+            return res.status(404).send({
+                status: 404,
+                message: "No meal plans found for this user. Please generate more meal plans."
+            });
+        }
+        
+        // If no meal plan for today, inform the frontend
+        if (!todayMealPlan) {
+            return res.status(200).send({
+                status: 200,
+                message: "No meal plan found for today. Please generate new meal plans.",
+                mealPlans: mealPlans,
+                hasTodayPlan: false,
+                today: today
+            });
+        }
+        
+        return res.status(200).send({
+            status: 200,
+            message: "Meal plans retrieved successfully",
+            mealPlans: mealPlans,
+            hasTodayPlan: true,
+            todayPlanID: todayMealPlan.planID,
+            today: today
         });
     } catch (err) {
-        res.status(500).send({
+        console.error("Error in getUserMealPlans:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error retrieving meal plans",
-            error: err
+            error: err.message || err
         });
     }
 }
@@ -53,6 +85,14 @@ const getUserMealPlans = async (req, res) => {
 const addUserMealPlan = async (req, res) => {
     try {
         const { userID } = req.body;
+        
+        if (!userID) {
+            return res.status(400).send({
+                status: 400,
+                message: "userID is required"
+            });
+        }
+        
         const planID = await generatePlanID();
 
         const mealPlan = {
@@ -60,27 +100,30 @@ const addUserMealPlan = async (req, res) => {
             userID: userID
         }
 
-        addMealPlan.run(mealPlan.planID, mealPlan.userID, (err) => {
-            if (err) {
-                console.error(err.message);
-                res.status(500).send({
-                    status: 500,
-                    message: "Error adding meal plan",
-                    error: err
-                });
-            } else {
-                res.status(200).send({
-                    status: 200,
-                    message: "Meal plan added successfully",
-                    mealPlan: mealPlan
-                });
-            }
+        // Convert callback to Promise to ensure we respond after the database operation completes
+        await new Promise((resolve, reject) => {
+            addMealPlan.run(mealPlan.planID, mealPlan.userID, (err) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        // Only send response after database operation completes successfully
+        return res.status(201).send({
+            status: 201,
+            message: "Meal plan added successfully",
+            mealPlan: mealPlan
         });
     } catch (err) {
-        res.status(500).send({
+        console.error("Error in addUserMealPlan:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error adding meal plan",
-            error: err
+            error: err.message || err
         });
     }
 }
@@ -88,27 +131,37 @@ const addUserMealPlan = async (req, res) => {
 const deleteUserMealPlan = async (req, res) => {
     try {
         const { planID } = req.body;
+        
+        if (!planID) {
+            return res.status(400).send({
+                status: 400,
+                message: "planID is required"
+            });
+        }
 
-        deleteMealPlan.run(planID, (err) => {
-            if (err) {
-                console.error(err.message);
-                res.status(500).send({
-                    status: 500,
-                    message: "Error deleting meal plan",
-                    error: err
-                });
-            } else {
-                res.status(200).send({
-                    status: 200,
-                    message: "Meal plan deleted successfully"
-                });
-            }
+        // Convert callback to Promise to ensure we respond after the database operation completes
+        await new Promise((resolve, reject) => {
+            deleteMealPlan.run(planID, (err) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        // Only send response after database operation completes successfully
+        return res.status(200).send({
+            status: 200,
+            message: "Meal plan deleted successfully"
         });
     } catch (err) {
-        res.status(500).send({
+        console.error("Error in deleteUserMealPlan:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error deleting meal plan",
-            error: err
+            error: err.message || err
         });
     }
 }
@@ -183,16 +236,25 @@ const makePlan = async (req, res) => {
 
         const formattedMealPlans = formatMealPlan(mealPlans);
         
-        // Store all 5 meal plans in the database
+        // Store 3 meal plans in the database starting from today
         const storedPlanIDs = [];
+        const today = new Date();
         
-        for (let i = 0; i < 5 && i < formattedMealPlans.length; i++) {
+        // Only store 3 meal plans instead of 5
+        for (let i = 0; i < 3 && i < formattedMealPlans.length; i++) {
             const planID = await generatePlanID();
             storedPlanIDs.push(planID);
             
-            // Add meal plan
+            // Calculate date: today + i days
+            const planDate = new Date(today);
+            planDate.setDate(today.getDate() + i);
+            const formattedDate = planDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            console.log(`Creating meal plan for ${formattedDate}`);
+            
+            // Add meal plan with the date
             await new Promise((resolve, reject) => {
-                addMealPlan.run(planID, userID, (err) => {
+                addMealPlan.run(planID, userID, formattedDate, (err) => {
                     if (err) reject(err);
                     else resolve();
                 });

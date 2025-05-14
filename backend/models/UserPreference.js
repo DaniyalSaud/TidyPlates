@@ -1,29 +1,21 @@
-import sqlite3 from "sqlite3";
+import { initStatements } from "./db.js";
 
-// Configure database with busy timeout and journal mode for better concurrency
-const database = new sqlite3.Database("tidyplates.db", (err) => {
-  if (err) console.error("Database connection error:", err.message);
-});
+// Get the prepared statements
+const getStatements = () => {
+  const statements = initStatements();
+  return statements.preference;
+};
 
-// Set busy timeout to wait when database is locked (5 seconds)
-database.configure("busyTimeout", 5000);
+// Export the functions that use the statements
+export const addUserPreference = {
+  run: (...args) => getStatements().add.run(...args)
+};
 
-// Creating a simple user table for now, with username, email, and password
-database.exec(`
-    CREATE TABLE IF NOT EXISTS Preferences (
-  userID INT NOT NULL,
-  cuisinePref VARCHAR,
-  avoid VARCHAR,
-  mealTypePref VARCHAR,
-  cookTimePref INT,
-  prefIngredients VARCHAR,
-  mealFreq INT NOT NULL,
-  mealTimings INT NOT NULL,
-  FOREIGN KEY (userID) REFERENCES User(userID)
-);`);
+export const getUserPreferenceByID = {
+  get: (...args) => getStatements().getById.get(...args),
+  all: (...args) => getStatements().getById.all(...args)
+};
 
-export const addUserPreference = database.prepare("INSERT INTO Preferences(userID, cuisinePref, avoid, mealTypePref, cookTimePref, prefIngredients, mealFreq, mealTimings) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-
-export const getUserPreferenceByID= database.prepare("SELECT * FROM Preferences WHERE userID = ?");
-
-export const deleteUserPreferenceByID = database.prepare("DELETE FROM Preferences WHERE userID = ?");
+export const deleteUserPreferenceByID = {
+  run: (...args) => getStatements().delete.run(...args)
+};

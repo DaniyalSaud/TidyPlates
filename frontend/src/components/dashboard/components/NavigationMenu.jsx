@@ -29,9 +29,6 @@ function NavigationMenu() {
             <NavigationItem route='schedule' title='Scheduling'>
               <AccessTimeOutlinedIcon className='text-black/70' fontSize='small' />
             </NavigationItem>
-            <NavigationItem route='grocery' title='Grocery List'>
-              <ShoppingCartOutlinedIcon className='text-black/70' fontSize='small' />
-            </NavigationItem>
           </ul>
 
         </div>

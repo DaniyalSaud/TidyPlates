@@ -1,6 +1,7 @@
 import { addMeal, getMeal, deleteMeal, getAllMealsByPlanID } from '../models/Meal.js';
 import sqlite3 from "sqlite3";
 import util from "util";
+import { generateId } from '../utils/idGenerator.js';
 
 // Configure database with busy timeout and journal mode for better concurrency
 const database = new sqlite3.Database("tidyplates.db", (err) => {
@@ -16,18 +17,51 @@ const getMealsByPlanIDAsync = util.promisify((planID, callback) => {
 });
 
 const generateMealID = async () => {
-    const mealID = Math.random() * 1000000;
+    const mealID = generateId('meal');
     return mealID;
 }
 
 const getUserMeal = async (req, res) => {
     try {
-
+        const { planID } = req.body;
+        
+        if (!planID) {
+            return res.status(400).send({
+                status: 400,
+                message: "planID is required"
+            });
+        }
+        
+        // Get all meals for a given plan ID
+        const meals = await new Promise((resolve, reject) => {
+            getAllMealsByPlanID.all(planID, (err, meals) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve(meals);
+                }
+            });
+        });
+        
+        if (!meals || meals.length === 0) {
+            return res.status(404).send({
+                status: 404,
+                message: "No meals found for this plan"
+            });
+        }
+        
+        return res.status(200).send({
+            status: 200,
+            message: "Meals retrieved successfully",
+            meals: meals
+        });
     } catch (err) {
-        res.status(500).send({
+        console.error("Error in getUserMeal:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error retrieving meal",
-            error: err
+            error: err.message || err
         });
     }
 }
@@ -36,27 +70,54 @@ const addUserMeal = async (req, res) => {
     try {
         const mealID = await generateMealID();
         const { planID, mealName, mealTime, mealTags, mealPicture } = req.body;
-        addMeal.run(mealID, planID, mealName, mealTime, mealTags, mealPicture, (err) => {
-            if (err) {
-                console.error(err.message);
-                res.status(500).send({
-                    status: 500,
-                    message: "Error adding meal",
-                    error: err
-                });
-            } else {
-                res.status(200).send({
-                    status: 200,
-                    message: "Meal added successfully",
-                    mealID: mealID
-                });
-            }
+        
+        if (!planID) {
+            return res.status(400).send({
+                status: 400,
+                message: "planID is required"
+            });
+        }
+        
+        // Add validation for mealName which has a NOT NULL constraint
+        if (!mealName) {
+            return res.status(400).send({
+                status: 400,
+                message: "mealName is required"
+            });
+        }
+        
+        // Add validation for mealTime which has a NOT NULL constraint
+        if (!mealTime) {
+            return res.status(400).send({
+                status: 400,
+                message: "mealTime is required"
+            });
+        }
+        
+        // Convert callback to Promise to ensure we respond after the database operation completes
+        await new Promise((resolve, reject) => {
+            addMeal.run(mealID, planID, mealName, mealTime, mealTags, mealPicture, (err) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        // Only send response after database operation completes successfully
+        return res.status(201).send({
+            status: 201,
+            message: "Meal added successfully",
+            mealID: mealID
         });
     } catch (err) {
-        res.status(500).send({
+        console.error("Error in addUserMeal:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error adding meal, either same mealID or Internal Server Error",
-            error: err
+            error: err.message || err
         });
     }
 }
@@ -64,30 +125,37 @@ const addUserMeal = async (req, res) => {
 const deleteUserMeal = async (req, res) => {
     try {
         const { mealID } = req.body;
-
-        deleteMeal.run(mealID, (err) => {
-            if (err) {
-                console.error(err.message);
-                res.status(500).send({
-                    status: 500,
-                    message: "Error deleting meal",
-                    error: err
-                });
-            } else {
-                res.status(200).send({
-                    status: 200,
-                    message: "Meal deleted successfully"
-                });
-            }
+        
+        if (!mealID) {
+            return res.status(400).send({
+                status: 400,
+                message: "mealID is required"
+            });
         }
-        );
 
-    }
-    catch (err) {
-        res.status(500).send({
+        // Convert callback to Promise to ensure we respond after the database operation completes
+        await new Promise((resolve, reject) => {
+            deleteMeal.run(mealID, (err) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve();
+                }
+            });
+        });
+        
+        // Only send response after database operation completes successfully
+        return res.status(200).send({
+            status: 200,
+            message: "Meal deleted successfully"
+        });
+    } catch (err) {
+        console.error("Error in deleteUserMeal:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error deleting meal",
-            error: err
+            error: err.message || err
         });
     }
 }
@@ -95,41 +163,52 @@ const deleteUserMeal = async (req, res) => {
 const getOnlyAllMealsOfMealPlan = async (req, res) => {
     try {
         const { planID } = req.body;
+        
+        if (!planID) {
+            return res.status(400).send({
+                status: 400,
+                message: "planID is required"
+            });
+        }
 
-        getAllMealsByPlanID.all(planID, (err, rows) => {
-            if (err) {
-                console.error(err.message);
-                res.status(500).send({
-                    status: 500,
-                    message: "Error retrieving meals",
-                    error: err
-                });
-            } else if (rows.length === 0) {
-                res.status(404).send({
-                    status: 404,
-                    message: "No meals found for this meal plan"
-                });
-            }
-            else {
-                res.status(200).send({
-                    status: 200,
-                    message: "Meals retrieved successfully",
-                    meals: rows
-                });
-            }
+        // Convert callback to Promise to ensure we respond after the database operation completes
+        const meals = await new Promise((resolve, reject) => {
+            getAllMealsByPlanID.all(planID, (err, rows) => {
+                if (err) {
+                    console.error("Database error:", err.message);
+                    reject(err);
+                } else {
+                    resolve(rows);
+                }
+            });
         });
-    }
-    catch (err) {
-        res.status(500).send({
+        
+        // Now that we have the data, we can send the response
+        if (!meals || meals.length === 0) {
+            return res.status(404).send({
+                status: 404,
+                message: "No meals found for this meal plan"
+            });
+        }
+        
+        return res.status(200).send({
+            status: 200,
+            message: "Meals retrieved successfully",
+            meals: meals
+        });
+    } catch (err) {
+        console.error("Error in getOnlyAllMealsOfMealPlan:", err);
+        return res.status(500).send({
             status: 500,
             message: "Error retrieving meals",
-            error: err
+            error: err.message || err
         });
     }
 }
 
 const getUserMealsWithDetails = async (req, res) => {
-    const { planID } = req.body;
+    // Get planID from either query parameters or request body
+    const planID = req.query.planID || (req.body && req.body.planID);
 
     if (!planID) {
         return res.status(400).send({

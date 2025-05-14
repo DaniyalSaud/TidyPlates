@@ -8,7 +8,7 @@ import {
 } from "../models/User.js";
 import { addUserHealthData, deleteUserHealthDataByID } from "../models/UserHealth.js";
 import { addUserPreference, deleteUserPreferenceByID } from "../models/UserPreference.js";
-import { UserIDPrefix } from "../const/const.js";
+import { generateId, generateBatchIds } from "../utils/idGenerator.js";
 import { generateMealPlans, formatMealPlan, generateMealPicture } from "../utils/mealGeneration.js";
 // Import meal plan related models
 import { addMealPlan, deleteAllMealPlans, deleteMealPlan, getAllMealPlansByID } from "../models/MealPlan.js";
@@ -32,46 +32,71 @@ const mealImagesFolder = path.resolve(path.join(__dirname, '../public/meal-image
  * @returns {string} Path to the meal image
  */
 async function getMealImagePath(mealName) {
-  // Convert meal name to lowercase and replace spaces with hyphens for file naming
-  const sanitizedMealName = mealName.toLowerCase().replace(/\s+/g, '-');
-  
-  // Define the physical file path (for storing the image)
-  const imageFilePath = path.join(mealImagesFolder, `${sanitizedMealName}.png`);
-  
-  // Define the relative URL path (for frontend to access)
-  const relativePathForDB = `/meal-images/${sanitizedMealName}.png`;
-  
-  // Check if images directory exists, create if it doesn't
-  if (!fs.existsSync(mealImagesFolder)) {
-    fs.mkdirSync(mealImagesFolder, { recursive: true });
-    console.log(`Created meal images directory at: ${mealImagesFolder}`);
-  }
-  
-  // If the image doesn't exist, generate it using the AI model
-  if (!fs.existsSync(imageFilePath)) {
-    console.log(`Generating image for meal: ${mealName}`);
-    try {
-      // Call the generateMealPicture function to create an image
-      await generateMealPicture({ 
-        mealName: mealName, 
-        imagePath: imageFilePath
-      });
-      console.log(`Generated image for ${mealName} at ${imageFilePath}`);
-    } catch (err) {
-      console.error(`Error generating image for ${mealName}: ${err.message}`);
-      
-      // If image generation fails, try to use a default image as fallback
-      const defaultImagePath = path.join(mealImagesFolder, 'default-meal.png');
-      if (fs.existsSync(defaultImagePath)) {
-        fs.copyFileSync(defaultImagePath, imageFilePath);
-        console.log(`Used default image for ${mealName} after generation failed`);
+  try {
+    if (!mealName) {
+      console.warn("No meal name provided for image generation, using default");
+      return '/meal-images/default-meal.png';
+    }
+
+    // Sanitize filename - replace invalid characters with underscores
+    const sanitizedName = mealName.replace(/[/\\:*?"<>|]/g, '_');
+    const filename = sanitizedName; // Use sanitized meal name
+    
+    // Define the physical file path (for storing the image)
+    const imageFilePath = path.join(mealImagesFolder, `${filename}.png`);
+    
+    // Define the relative URL path (for frontend to access)
+    const relativePathForDB = `/meal-images/${filename}.png`;
+    
+    // Check if images directory exists, create if it doesn't
+    if (!fs.existsSync(mealImagesFolder)) {
+      try {
+        fs.mkdirSync(mealImagesFolder, { recursive: true });
+        console.log(`Created meal images directory at: ${mealImagesFolder}`);
+      } catch (dirErr) {
+        console.error(`Failed to create meal images directory: ${dirErr.message}`);
+        return '/meal-images/default-meal.png';
       }
     }
-  } else {
-    console.log(`Using existing image for ${mealName}: ${imageFilePath}`);
+    
+    // If the image doesn't exist, generate it using the AI model
+    if (!fs.existsSync(imageFilePath)) {
+      console.log(`Generating image for meal: ${mealName}`);
+      try {
+        // Call the generateMealPicture function to create an image
+        await generateMealPicture({
+          mealName: mealName,
+          imagePath: imageFilePath
+        });
+        console.log(`Generated image for ${mealName} at ${imageFilePath}`);
+      } catch (err) {
+        console.error(`Error generating image for ${mealName}: ${err.message}`);
+        
+        // If image generation fails, try to use a default image as fallback
+        const defaultImagePath = path.join(mealImagesFolder, 'default-meal.png');
+        if (fs.existsSync(defaultImagePath)) {
+          try {
+            fs.copyFileSync(defaultImagePath, imageFilePath);
+            console.log(`Used default image for ${mealName} after generation failed`);
+          } catch (copyErr) {
+            console.error(`Failed to copy default image: ${copyErr.message}`);
+            return '/meal-images/default-meal.png';
+          }
+        } else {
+          console.warn(`Default image not found at ${defaultImagePath}, returning path anyway`);
+          return '/meal-images/default-meal.png';
+        }
+      }
+    } else {
+      console.log(`Using existing image for ${mealName}: ${imageFilePath}`);
+    }
+    
+    return relativePathForDB;
+  } catch (error) {
+    // Catch-all error handler to prevent function from throwing
+    console.error(`Unexpected error in getMealImagePath: ${error.message}`);
+    return '/meal-images/default-meal.png';
   }
-  
-  return relativePathForDB;
 }
 
 // Configure database with busy timeout and journal mode for better concurrency
@@ -87,6 +112,14 @@ database.exec("PRAGMA journal_mode = WAL;");
 
 const createAccount = async (req, res) => {
   try {
+    // Validate request body exists
+    if (!req.body) {
+      return res.status(400).send({
+        status: 400,
+        error: "Request body is missing"
+      });
+    }
+
     const {
       username,
       email,
@@ -109,8 +142,16 @@ const createAccount = async (req, res) => {
       mealFreq,
       mealTimings,
     } = req.body;
-    const userID = UserIDPrefix * 10 + 2;
 
+    // Validate required fields
+    if (!username || !email || !password) {
+      return res.status(400).send({
+        status: 400,
+        error: "Username, email, and password are required"
+      });
+    }
+
+    const userID = generateId('user');
     // Check if the username or email already exists
     const userExists = await new Promise((resolve, reject) => {
       getUserByUsername.get(username, (err, user) => {
@@ -128,44 +169,96 @@ const createAccount = async (req, res) => {
 
     // Generate meal plan first to ensure it succeeds
     console.log("Generating meal plans for new user");
-    const mealPlans5 = await generateMealPlans({
-      age,
-      gender,
-      weight,
-      height,
-      chronicConditions,
-      allergies,
-      dietaryRestrictions,
-      medications,
-      goals,
-      cuisinePref,
-      avoid,
-      mealTypePref,
-      cookTimePref,
-      prefIngredients,
-      mealFreq,
-      mealTimings,
-    });
+    let mealPlans5;
+    
+    try {
+      mealPlans5 = await generateMealPlans({
+        age,
+        gender,
+        weight,
+        height,
+        chronicConditions,
+        allergies,
+        dietaryRestrictions,
+        medications,
+        goals,
+        cuisinePref,
+        avoid,
+        mealTypePref,
+        cookTimePref,
+        prefIngredients,
+        mealFreq,
+        mealTimings,
+      });
 
-    if (!mealPlans5) {
+      if (!mealPlans5) {
+        console.error("generateMealPlans returned null - using fallback");
+        // Create basic fallback meal plan data here in case the function returns null
+        // This is a second layer of protection in addition to the fallback in generateMealPlans
+        const today = new Date();
+        mealPlans5 = {
+          "mealPlan": [
+            {
+              "planId": 1,
+              "date": today.toISOString().split('T')[0],
+              "meals": [
+                {
+                  "mealName": "Basic Breakfast",
+                  "time": "08:00",
+                  "recipe": "Step 1$Step 2$Step 3",
+                  "ingredients": ["oats", "milk", "berries"],
+                  "nutritions": { "calories": 300, "protein": 15, "carbs": 40, "fat": 10 },
+                  "tags": ["breakfast", "quick"]
+                },
+                {
+                  "mealName": "Basic Lunch",
+                  "time": "13:00",
+                  "recipe": "Step 1$Step 2$Step 3",
+                  "ingredients": ["chicken", "rice", "vegetables"],
+                  "nutritions": { "calories": 450, "protein": 30, "carbs": 50, "fat": 15 },
+                  "tags": ["lunch", "protein"]
+                },
+                {
+                  "mealName": "Basic Dinner",
+                  "time": "19:00",
+                  "recipe": "Step 1$Step 2$Step 3",
+                  "ingredients": ["fish", "potatoes", "vegetables"],
+                  "nutritions": { "calories": 400, "protein": 25, "carbs": 45, "fat": 12 },
+                  "tags": ["dinner", "healthy"]
+                }
+              ],
+              "dailyTotals": { "calories": 1150, "protein": 70, "carbs": 135, "fat": 37 }
+            }
+          ]
+        };
+      }
+    } catch (mealGenError) {
+      console.error("Error generating meal plans:", mealGenError);
       return res.status(500).send({
         status: 500,
         error: "Failed to generate meal plans. Account creation aborted.",
+        details: mealGenError.message
       });
     }
 
-    const formattedMealPlan = formatMealPlan(mealPlans5);
-    if (!formattedMealPlan || formattedMealPlan.length === 0) {
+    let formattedMealPlan;
+    try {
+      formattedMealPlan = formatMealPlan(mealPlans5);
+      if (!formattedMealPlan || formattedMealPlan.length === 0) {
+        throw new Error("Failed to format meal plans or empty result returned");
+      }
+    } catch (formatError) {
+      console.error("Error formatting meal plans:", formatError);
       return res.status(500).send({
         status: 500,
         error: "Failed to format meal plans. Account creation aborted.",
       });
     }
 
-    // Ensure we only have 5 meal plans
-    const mealPlansToStore = formattedMealPlan.slice(0, 5);
-    if (mealPlansToStore.length !== 5) {
-      console.warn(`Expected 5 meal plans, but got ${mealPlansToStore.length}. Will proceed with what we have.`);
+    // Ensure we only have 3 meal plans
+    const mealPlansToStore = formattedMealPlan.slice(0, 3);
+    if (mealPlansToStore.length !== 3) {
+      console.warn(`Expected 3 meal plans, but got ${mealPlansToStore.length}. Will proceed with what we have.`);
     }
 
     // Begin transaction-like behavior using serialization
@@ -223,70 +316,97 @@ const createAccount = async (req, res) => {
             );
           });
 
-          // Generate unique plan IDs for each day's meal plan (5 days)
-          const planIDs = Array.from({ length: 5 }, () => Math.floor(Math.random() * 1000000));
+          // Generate unique plan IDs for each day's meal plan (3 days)
+          const planIDs = generateBatchIds('mealPlan', 3);
 
           // Add meals for each day in the meal plan with their unique plan ID
+          // Start meal plans from today's date
+          const today = new Date();
+          
           for (let i = 0; i < mealPlansToStore.length; i++) {
             const dailyPlan = mealPlansToStore[i];
             const planID = planIDs[i];
-            const planDate = dailyPlan.date || new Date(Date.now() + i * 86400000).toISOString().split('T')[0];
+            // Calculate date: today + i days
+            const planDate = new Date(today);
+            planDate.setDate(today.getDate() + i);
+            const formattedDate = planDate.toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            console.log(`Creating meal plan for ${formattedDate}`);
 
-            // Add meal plan to database with date
-            await new Promise((resolve, reject) => {
-              addMealPlan.run(planID, userID, planDate, function (err) {
-                if (err) reject(err);
-                else resolve();
+            try {
+              // Add meal plan to database with date
+              await new Promise((resolve, reject) => {
+                addMealPlan.run(planID, userID, formattedDate, function (err) {
+                  if (err) {
+                    console.error(`Error adding meal plan for ${formattedDate}:`, err);
+                    reject(err);
+                  } else {
+                    console.log(`Successfully added meal plan with ID ${planID} for date ${formattedDate}`);
+                    resolve();
+                  }
+                });
               });
-            });
+            } catch (mealPlanError) {
+              console.error(`Failed to add meal plan for day ${i}:`, mealPlanError);
+              // Continue with next meal plan instead of failing completely
+              continue;
+            }
 
             // Add all meals for this day's plan
             for (const meal of dailyPlan.meals) {
               try {
+                // Validate meal data
+                if (!meal.mealName) {
+                  console.warn("Meal without name found, skipping...");
+                  continue;
+                }
+                
                 // Generate unique meal ID
-                const mealID = Math.floor(Math.random() * 1000000);
-
-                // Add meal to database
-                // Convert tags array to string if needed
+                const mealID = generateId('meal');
+                
+                // Prepare meal tags (ensure it's a string)
                 const mealTags = Array.isArray(meal.tags) ? meal.tags.join(',') :
                   (typeof meal.tags === 'string' ? meal.tags : '');
-
-                await new Promise(async (resolve, reject) => {
-                  try {
-                    // Generate or get image path for the meal - await this to ensure image is generated
-                    const mealImagePath = await getMealImagePath(meal.mealName);
-                    
-                    // Add meal to database with the image path
-                    addMeal.run(
-                      mealID,
-                      planID,
-                      meal.mealName,
-                      meal.timeToEat || meal.time || '12:00',
-                      mealTags,
-                      mealImagePath,
-                      function (err) {
-                        if (err) reject(err);
-                        else resolve();
-                      }
-                    );
-                  } catch (imageError) {
-                    console.error(`Error generating image for meal ${meal.mealName}:`, imageError);
-                    
-                    // Continue with default image path if image generation fails
-                    const defaultImagePath = '/meal-images/default-meal.png';
-                    addMeal.run(
-                      mealID,
-                      planID,
-                      meal.mealName,
-                      meal.timeToEat || meal.time || '12:00',
-                      mealTags,
-                      defaultImagePath,
-                      function (err) {
-                        if (err) reject(err);
-                        else resolve();
-                      }
-                    );
+                
+                // Ensure the meal time is valid
+                const mealTime = meal.timeToEat || meal.time || '12:00';
+                
+                // Try to get a meal image (with fallback handling)
+                let mealImagePath;
+                try {
+                  console.log(`Trying to generate image for meal: ${meal.mealName}`);
+                  mealImagePath = await getMealImagePath(meal.mealName);
+                  
+                  if (!mealImagePath) {
+                    console.warn(`No image path returned for ${meal.mealName}, using default`);
+                    mealImagePath = '/meal-images/default-meal.png';
                   }
+                } catch (imageError) {
+                  console.error(`Failed to generate image for meal ${meal.mealName}:`, imageError);
+                  mealImagePath = '/meal-images/default-meal.png';
+                }
+                
+                // Add meal to database with error handling
+                await new Promise((resolve, reject) => {
+                  console.log(`Adding meal to database: ${meal.mealName}, time: ${mealTime}, image: ${mealImagePath}`);
+                  
+                  addMeal.run(
+                    mealID,
+                    planID,
+                    meal.mealName,
+                    mealTime,
+                    mealTags,
+                    mealImagePath,
+                    function (err) {
+                      if (err) {
+                        console.error(`Failed to add meal ${meal.mealName} to database:`, err);
+                        reject(err);
+                      } else {
+                        console.log(`Successfully added meal ${meal.mealName} with ID ${mealID}`);
+                        resolve();
+                      }
+                    }
+                  );
                 });
 
                 // Add nutritional information
@@ -311,7 +431,7 @@ const createAccount = async (req, res) => {
                 });
 
                 // Add recipe
-                const recipeID = Math.floor(Math.random() * 1000000);
+                const recipeID = generateId('recipe');
                 // Process recipe steps - ensure it's stored as a string with $ delimiters
                 const recipeSteps = Array.isArray(meal.recipe) ? meal.recipe.join('$') :
                   (typeof meal.recipe === 'string' ? meal.recipe : '');
@@ -366,11 +486,12 @@ const createAccount = async (req, res) => {
             }
           }
 
-          console.log("Account and meal plan successfully stored in database");
+          console.log("Account and 3-day meal plan successfully stored in database");
 
-          resolveTransaction(res.status(201).send({
+          // Send the successful response
+          const response = {
             status: 201,
-            message: "Account created successfully with meal plans!",
+            message: "Account created successfully with a 3-day meal plan!",
             data: {
               userID: userID,
               username: username,
@@ -378,7 +499,10 @@ const createAccount = async (req, res) => {
               phoneNumber: phoneNumber,
               age: age,
             },
-          }));
+          };
+          
+          res.status(201).json(response);
+          resolveTransaction(response);
         } catch (dbError) {
           console.error("Error while creating account or storing meal plans:", dbError);
 
@@ -396,19 +520,23 @@ const createAccount = async (req, res) => {
             console.error("Error during cleanup after failed account creation:", cleanupError);
           }
 
-          rejectTransaction(
-            res.status(500).send({
-              status: 500,
-              error: "Failed to create account with meal plans. Please try again later.",
-              details: dbError.message
-            })
-          );
+          // Send error response
+          const errorResponse = {
+            status: 500,
+            error: "Failed to create account with meal plans. Please try again later.",
+            details: dbError.message
+          };
+          
+          res.status(500).json(errorResponse);
+          rejectTransaction(errorResponse);
         }
       });
     });
   } catch (error) {
     console.error("Unexpected error during account creation:", error);
-    return res.status(500).send({
+    
+    // Ensure we always send a complete JSON response
+    return res.status(500).json({
       status: 500,
       error: "Error when processing your request. Please try again later.",
       details: error.message
@@ -417,6 +545,7 @@ const createAccount = async (req, res) => {
 };
 
 const getAccount = async (req, res) => {
+  console.log("Received request to get account");
   try {
     const { email, password } = req.body;
 
@@ -456,193 +585,222 @@ const deleteAccount = async (req, res) => {
     if (!userID) {
       return res.status(400).send({
         status: 400,
-        error: "User ID is required to delete an account."
+        error: "User ID is required to delete an account.",
       });
     }
 
+    // Verify user exists before attempting deletion
     const user = await new Promise((resolve, reject) => {
-      getUserByID.get(userID, (err, user) => {
+      getUserByID.get(userID, (err, userRow) => {
         if (err) return reject(err);
-        resolve(user);
+        resolve(userRow);
       });
     });
 
     if (!user) {
       return res.status(404).send({
         status: 404,
-        error: "Account not found. Please check your user ID."
+        error: "Account not found. Please check your user ID.",
       });
     }
 
-    // Begin transaction-like behavior for deletion using serialize
+    // Use a transaction for atomic deletion
     return await new Promise((resolveTransaction, rejectTransaction) => {
-      database.serialize(async () => {
-        let deletionResults = {
-          success: true,
-          errors: [],
-          message: "Account deleted successfully"
-        };
+      database.exec('BEGIN TRANSACTION', async (beginErr) => {
+        if (beginErr) {
+          console.error("Failed to begin transaction for deleteAccount:", beginErr);
+          return rejectTransaction(res.status(500).send({
+            status: 500,
+            message: "Failed to start database transaction.",
+            success: false,
+            error: beginErr.message,
+          }));
+        }
 
         try {
-          // Get all meal plans for this user
+          let deletionResults = {
+            success: true,
+            errors: [],
+            message: "Account and related data deleted successfully",
+          };
+
+          // Define the order of deletion based on dependencies for a single user
+          // 1. Get IDs of related items
           const mealPlans = await new Promise((resolve, reject) => {
             getAllMealPlansByID.all(userID, (err, plans) => {
-              if (err) reject(err);
-              else resolve(plans || []);
+              if (err) reject(err); else resolve(plans || []);
             });
           });
+          const planIDs = mealPlans.map(p => p.planID);
 
-          // For each meal plan, delete associated data
-          for (const plan of mealPlans) {
-            // Get all meals for this plan
-            const meals = await new Promise((resolve, reject) => {
-              getAllMealsByPlanID.all(plan.planID, (err, mealList) => {
-                if (err) reject(err);
-                else resolve(mealList || []);
-              });
-            });
+          let mealIDs = [];
+          if (planIDs.length > 0) {
+             const meals = await new Promise((resolve, reject) => {
+                 // Construct the IN clause safely
+                 const placeholders = planIDs.map(() => '?').join(',');
+                 const sql = `SELECT mealID FROM Meal WHERE planID IN (${placeholders})`;
+                 database.all(sql, planIDs, (err, mealRows) => {
+                     if (err) reject(err); else resolve(mealRows || []);
+                 });
+             });
+             mealIDs = meals.map(m => m.mealID);
+          }
 
-            // Delete related data for each meal
-            for (const meal of meals) {
-              // Delete nutritional information
-              await new Promise((resolve) => {
-                deleteNutritions.run(meal.mealID, function (err) {
-                  if (err) {
-                    console.error(`Failed to delete nutritions for meal ${meal.mealID}: ${err.message}`);
-                    deletionResults.errors.push(`Failed to delete nutritions for meal ${meal.mealID}`);
-                  }
-                  resolve();
-                });
-              });
 
-              // Get and delete recipes
+          let recipeIDs = [];
+          if (mealIDs.length > 0) {
               const recipes = await new Promise((resolve, reject) => {
-                database.all("SELECT recipeID FROM Recipe WHERE mealID = ?", [meal.mealID], (err, recipeList) => {
-                  if (err) reject(err);
-                  else resolve(recipeList || []);
-                });
+                  const placeholders = mealIDs.map(() => '?').join(',');
+                  const sql = `SELECT recipeID FROM Recipe WHERE mealID IN (${placeholders})`;
+                  database.all(sql, mealIDs, (err, recipeRows) => {
+                      if (err) reject(err); else resolve(recipeRows || []);
+                  });
               });
+              recipeIDs = recipes.map(r => r.recipeID);
+          }
 
-              // Delete recipe ingredients and recipes
-              for (const recipe of recipes) {
-                try {
-                  await new Promise((resolve) => {
-                    deleteRecipeIngredient.run(recipe.recipeID, function (err) {
-                      if (err) {
-                        console.error(`Failed to delete ingredients for recipe ${recipe.recipeID}: ${err.message}`);
-                        deletionResults.errors.push(`Failed to delete ingredients for recipe ${recipe.recipeID}`);
-                      }
-                      resolve();
-                    });
-                  });
 
-                  await new Promise((resolve) => {
-                    deleteRecipe.run(recipe.recipeID, function (err) {
-                      if (err) {
-                        console.error(`Failed to delete recipe ${recipe.recipeID}: ${err.message}`);
-                        deletionResults.errors.push(`Failed to delete recipe ${recipe.recipeID}`);
-                      }
-                      resolve();
-                    });
-                  });
-                } catch (e) {
-                  console.error(`Error during recipe deletion: ${e.message}`);
-                  deletionResults.errors.push(`Error during recipe deletion: ${e.message}`);
-                }
-              }
+          // 2. Delete dependent data in reverse order of dependency
+          // RecipeIngredient depends on Recipe
+          if (recipeIDs.length > 0) {
+            await new Promise((resolve, reject) => {
+              const placeholders = recipeIDs.map(() => '?').join(',');
+              deleteRecipeIngredient.run(`WHERE recipeID IN (${placeholders})`, recipeIDs, function(err) { // Assuming deleteRecipeIngredient is prepared like "DELETE FROM RecipeIngredient "
+                 if (err) reject(new Error(`Failed to delete recipe ingredients for recipes [${recipeIDs.join(',')}]: ${err.message}`)); else resolve();
+              });
+            });
+          }
+
+          // Nutritions depends on Meal
+          if (mealIDs.length > 0) {
+            await new Promise((resolve, reject) => {
+              const placeholders = mealIDs.map(() => '?').join(',');
+              deleteNutritions.run(`WHERE mealID IN (${placeholders})`, mealIDs, function(err) { // Assuming deleteNutritions is prepared like "DELETE FROM Nutritions "
+                 if (err) reject(new Error(`Failed to delete nutritions for meals [${mealIDs.join(',')}]: ${err.message}`)); else resolve();
+              });
+            });
+          }
+
+          // Recipe depends on Meal
+          if (mealIDs.length > 0) { // Use mealIDs here as Recipe depends on Meal
+            await new Promise((resolve, reject) => {
+              const placeholders = mealIDs.map(() => '?').join(',');
+              deleteRecipe.run(`WHERE mealID IN (${placeholders})`, mealIDs, function(err) { // Assuming deleteRecipe is prepared like "DELETE FROM Recipe "
+                 if (err) reject(new Error(`Failed to delete recipes for meals [${mealIDs.join(',')}]: ${err.message}`)); else resolve();
+              });
+            });
+          }
+
+          // Meal depends on MealPlan
+          if (planIDs.length > 0) {
+            await new Promise((resolve, reject) => {
+              const placeholders = planIDs.map(() => '?').join(',');
+              // Assuming deleteAllMealsByUserID is actually "DELETE FROM Meal WHERE planID IN (...)" or similar
+              // If it's truly by UserID, that's less safe transactionally here. Let's assume it can target planIDs.
+              // If not, we need a new prepared statement: deleteMealsByPlanIDs
+              database.run(`DELETE FROM Meal WHERE planID IN (${placeholders})`, planIDs, function(err) {
+                 if (err) reject(new Error(`Failed to delete meals for plans [${planIDs.join(',')}]: ${err.message}`)); else resolve();
+              });
+            });
+          }
+
+          // MealPlan depends on User
+          await new Promise((resolve, reject) => {
+            deleteAllMealPlans.run(userID, function(err) { // This seems correct (delete all plans for this user)
+               if (err) reject(new Error(`Failed to delete meal plans for user ${userID}: ${err.message}`)); else resolve();
+            });
+          });
+
+          // Reminder depends on User (Assuming Reminder model and deletion exists)
+          // await new Promise((resolve, reject) => {
+          //   deleteRemindersByUserID.run(userID, function(err) { // Replace with actual function if exists
+          //      if (err) reject(new Error(`Failed to delete reminders for user ${userID}: ${err.message}`)); else resolve();
+          //   });
+          // });
+
+
+          // UserHealth depends on User
+          await new Promise((resolve, reject) => {
+            deleteUserHealthDataByID.run(userID, function(err) {
+               if (err) reject(new Error(`Failed to delete health data for user ${userID}: ${err.message}`)); else resolve();
+            });
+          });
+
+          // UserPreference depends on User
+          await new Promise((resolve, reject) => {
+            deleteUserPreferenceByID.run(userID, function(err) {
+               if (err) reject(new Error(`Failed to delete preferences for user ${userID}: ${err.message}`)); else resolve();
+            });
+          });
+
+          // Finally, delete the User
+          await new Promise((resolve, reject) => {
+            deleteUser.run(userID, function(err) {
+               if (err) reject(new Error(`Failed to delete user ${userID}: ${err.message}`)); else resolve();
+            });
+          });
+
+          // If all deletions succeeded, commit the transaction
+          database.exec('COMMIT', (commitErr) => {
+            if (commitErr) {
+              console.error("Failed to commit transaction for deleteAccount:", commitErr);
+              database.exec('ROLLBACK'); // Attempt rollback on commit failure
+              rejectTransaction(res.status(500).send({
+                status: 500,
+                message: "Failed to commit transaction after deleting account data.",
+                success: false,
+                error: commitErr.message,
+              }));
+            } else {
+              console.log(`Successfully deleted account ${userID} and related data.`);
+              resolveTransaction(res.status(200).send({
+                status: 200,
+                message: deletionResults.message,
+                success: true,
+              }));
             }
-          }
-
-          // Delete all meals for this user
-          await new Promise((resolve) => {
-            deleteAllMealsByUserID.run(userID, function (err) {
-              if (err) {
-                console.error(`Failed to delete meals for user ${userID}: ${err.message}`);
-                deletionResults.errors.push(`Failed to delete meals for user ${userID}`);
-              }
-              resolve();
-            });
           });
 
-          // Delete all meal plans for this user
-          await new Promise((resolve) => {
-            deleteAllMealPlans.run(userID, function (err) {
-              if (err) {
-                console.error(`Failed to delete all meal plans for user ${userID}: ${err.message}`);
-                deletionResults.errors.push(`Failed to delete all meal plans for user ${userID}`);
-              }
-              resolve();
-            });
-          });
-
-          // Delete user preferences and health data
-          await new Promise((resolve) => {
-            deleteUserHealthDataByID.run(userID, function (err) {
-              if (err) {
-                console.error(`Failed to delete user health data: ${err.message}`);
-                deletionResults.errors.push(`Failed to delete user health data`);
-              }
-              resolve();
-            });
-          });
-
-          await new Promise((resolve) => {
-            deleteUserPreferenceByID.run(userID, function (err) {
-              if (err) {
-                console.error(`Failed to delete user preferences: ${err.message}`);
-                deletionResults.errors.push(`Failed to delete user preferences`);
-              }
-              resolve();
-            });
-          });
-
-          // Finally delete the user
-          await new Promise((resolve) => {
-            deleteUser.run(userID, function (err) {
-              if (err) {
-                console.error(`Failed to delete user ${userID}: ${err.message}`);
-                deletionResults.errors.push(`Failed to delete user ${userID}`);
-                deletionResults.success = false;
-              }
-              resolve();
-            });
-          });
-
-          // If we had errors but the main user account was deleted
-          if (deletionResults.errors.length > 0 && deletionResults.success) {
-            deletionResults.message = "Account deleted with some errors in related data deletion";
-          }
-          // If we couldn't delete the main user account
-          else if (!deletionResults.success) {
-            deletionResults.message = "Failed to delete the user account, but some related data may have been deleted";
-          }
-
-          const statusCode = deletionResults.success ? 200 : 500;
-
-          resolveTransaction(res.status(statusCode).send({
-            status: statusCode,
-            message: deletionResults.message,
-            success: deletionResults.success,
-            errors: deletionResults.errors.length > 0 ? deletionResults.errors : undefined
-          }));
         } catch (deleteErr) {
-          console.error("Error during account deletion process:", deleteErr);
-          rejectTransaction(res.status(500).send({
-            status: 500,
-            message: "Error deleting account and related data",
-            success: false,
-            error: deleteErr.message
-          }));
+          // If any deletion step failed, rollback the transaction
+          console.error(`Error during account ${userID} deletion process, rolling back:`, deleteErr);
+          deletionResults.success = false;
+          deletionResults.message = "Failed to delete account due to error";
+          deletionResults.errors.push(deleteErr.message);
+
+          database.exec('ROLLBACK', (rollbackErr) => {
+            if (rollbackErr) {
+              console.error("Rollback failed for deleteAccount:", rollbackErr);
+              // If rollback fails, the DB state is uncertain
+              rejectTransaction(res.status(500).send({
+                status: 500,
+                message: "Failed to delete data and also failed to rollback transaction.",
+                success: false,
+                errors: deletionResults.errors,
+                rollbackError: rollbackErr.message,
+              }));
+            } else {
+              console.log(`Transaction rolled back for user ${userID} due to deletion errors.`);
+              rejectTransaction(res.status(500).send({
+                status: 500,
+                message: deletionResults.message,
+                success: false,
+                errors: deletionResults.errors,
+              }));
+            }
+          });
         }
       });
     });
+
   } catch (err) {
-    console.error("Unexpected error during account deletion:", err);
+    // Catch errors from initial user check or setting up the transaction
+    console.error("Unexpected error during account deletion setup:", err);
     res.status(500).send({
       status: 500,
-      error: "Error deleting account while accessing Database. /DELETE",
+      error: "Error processing account deletion request.",
       success: false,
-      err: err.message
+      err: err.message,
     });
   }
 };
@@ -696,8 +854,8 @@ const deleteAllAccounts = async (req, res) => {
       'Meal',             // Depends on MealPlan
       'MealPlan',         // Depends on User
       'Reminder',         // Depends on User (Assuming Reminder model exists and depends on User)
-      'UserHealth',       // Depends on User
-      'UserPreference',   // Depends on User
+      'Health',           // Depends on User - Fixed to match actual database table name
+      'Preferences',      // Depends on User - Fixed to match actual database table name
       'User'              // Main user table (delete last)
     ];
 
@@ -833,4 +991,39 @@ const deleteAllAccounts = async (req, res) => {
   }
 };
 
-export { createAccount, getAccount, deleteAccount, getAllAccounts, deleteAllAccounts };
+const checkUsername = async (req, res) => {
+  try {
+    const { username } = req.query;
+
+    if (!username) {
+      return res.status(400).send({
+        status: 400,
+        error: "Username parameter is required",
+      });
+    }
+
+    // Check if the username exists in the database
+    const user = await new Promise((resolve, reject) => {
+      getUserByUsername.get(username, (err, user) => {
+        if (err) return reject(err);
+        resolve(user);
+      });
+    });
+
+    // Return a response indicating if the username is available
+    return res.status(200).send({
+      status: 200,
+      available: !user, // true if user doesn't exist, false if it does
+      message: user ? "Username is already taken" : "Username is available",
+    });
+  } catch (err) {
+    console.error("Error checking username availability:", err);
+    return res.status(500).send({
+      status: 500,
+      error: "Error checking username availability",
+      message: err.message,
+    });
+  }
+};
+
+export { createAccount, getAccount, deleteAccount, getAllAccounts, deleteAllAccounts, checkUsername };

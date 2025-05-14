@@ -1,36 +1,21 @@
-import sqlite3 from "sqlite3";
+import { initStatements } from "./db.js";
 
-// Configure database with busy timeout and journal mode for better concurrency
-const database = new sqlite3.Database("tidyplates.db", (err) => {
-  if (err) console.error("Database connection error:", err.message);
-});
+// Get the prepared statements
+const getStatements = () => {
+  const statements = initStatements();
+  return statements.health;
+};
 
-// Set busy timeout to wait when database is locked (5 seconds)
-database.configure("busyTimeout", 5000);
+// Export the functions that use the statements
+export const addUserHealthData = {
+  run: (...args) => getStatements().add.run(...args)
+};
 
-// Creating a simple user table for now, with username, email, and password
-database.exec(`
-    CREATE TABLE IF NOT EXISTS Health (
-  userID INT NOT NULL,
-  chronicConditions VARCHAR,
-  allergies VARCHAR,
-  dietaryRestrictions VARCHAR,
-  medications VARCHAR,
-  goals VARCHAR,
-  FOREIGN KEY (userID) REFERENCES User(userID)
-);`);
+export const deleteUserHealthDataByID = {
+  run: (...args) => getStatements().delete.run(...args)
+};
 
-
-export const addUserHealthData = database.prepare(`
-    INSERT INTO Health (userID, chronicConditions, allergies, dietaryRestrictions, medications, goals)
-    VALUES (?, ?, ?, ?, ?, ?);
-`);
-
-export const deleteUserHealthDataByID = database.prepare(`
-    DELETE FROM Health WHERE userID = ?;
-`);
-
-
-export const getUserHealthDataByID = database.prepare(`
-    SELECT * FROM Health WHERE userID = ?;
-`);
+export const getUserHealthDataByID = {
+  get: (...args) => getStatements().getById.get(...args),
+  all: (...args) => getStatements().getById.all(...args)
+};

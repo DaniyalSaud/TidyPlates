@@ -1,22 +1,20 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 
-function SignUpPreference({ setFormPage, register, handleSubmit, watch }) {
+function SignUpPreference({ setFormPage, register, handleSubmit, watch, onFinalSubmit, isSubmitting }) {
+  const [networkState, setNetworkState] = useState(navigator.onLine ? 'online' : 'offline');
 
-  const onSubmit = async (data) => {
-    try {
-      const response = await fetch('http://localhost:5000/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
-      const result = response;
-      console.log(result);
-    } catch (error) {
-      console.error('Error while sending request to server:', error);
-    }
-  }; // Send the data to the backend and wait till the response of success is received
+  useEffect(() => {
+    const handleOnline = () => setNetworkState('online');
+    const handleOffline = () => setNetworkState('offline');
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleGoBack = () => {
     setFormPage((curr) => curr - 1);
@@ -24,18 +22,16 @@ function SignUpPreference({ setFormPage, register, handleSubmit, watch }) {
   };
 
   return (
-    //pt-4 pb-4 pl-10 pr-10
     <>
       <div className="preference-form w-3/4 mx-auto rounded-lg shadow-lg bg-gray-50 pt-4 pb-4 pl-10 pr-10 mb-6">
         <div className="pb-8">
           <h1 className="sign-up-form-top-heading pb-1">Meal Preferences</h1>
           <p className="text-sm text-black/70">
-            {" "}
             Customize your meal plan by selecting your preferences below
           </p>
         </div>
 
-        <form className="flex flex-col gap-6" action="">
+        <form className="flex flex-col gap-6" onSubmit={handleSubmit(onFinalSubmit)}>
           <div className="cuisines pl-4 pt-2 input-white-bg bottom-shadow pb-12">
             <h1 className="text-xl font-medium pb-4">Cuisine Preferences</h1>
             <div className="grid grid-cols-3 gap-4 justify-items-left items-center">
@@ -48,7 +44,7 @@ function SignUpPreference({ setFormPage, register, handleSubmit, watch }) {
                 <label htmlFor="italian">Italian</label>
               </div>
               <div className="flex gap-2">
-                <input type="checkbox" {...register("cuisines")} value="asian  " id="asian" />
+                <input type="checkbox" {...register("cuisines")} value="asian" id="asian" />
                 <label htmlFor="asian">Asian</label>
               </div>
               <div className="flex gap-2">
@@ -121,7 +117,7 @@ function SignUpPreference({ setFormPage, register, handleSubmit, watch }) {
               <div className="flex gap-2">
                 <input type="radio" {...register("type_pref", {
                   value: "vegan",
-                })} name=" pref" id="vegan-pref" />
+                })} name="pref" id="vegan-pref" />
                 <label htmlFor="vegan-pref">Vegan</label>
               </div>
             </div>
@@ -219,18 +215,38 @@ function SignUpPreference({ setFormPage, register, handleSubmit, watch }) {
           <div className="flex justify-between pt-4">
             <button
               onClick={handleGoBack}
+              type="button"
               className="cursor-pointer transition ease-in-out rounded-lg h-10 bg-white bottom-shadow w-20 hover:bg-gray-200 active:bg-gray-300"
+              disabled={isSubmitting}
             >
               Previous
             </button>
             <button
-              onClick={handleSubmit(onSubmit)}
               type="submit"
-              className="cursor-pointer transition ease-in-out rounded-lg h-10 bg-black text-white font-medium w-40 hover:bg-black/80 active:bg-black/60 "
+              disabled={isSubmitting || networkState === 'offline'}
+              className={`cursor-pointer transition ease-in-out rounded-lg h-10 ${networkState === 'offline' ? 'bg-gray-400' : 'bg-black hover:bg-black/80 active:bg-black/60'} text-white font-medium w-40 ${isSubmitting || networkState === 'offline' ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              Save Preferences
+              {isSubmitting ? 'Creating Account...' : 'Create Account'}
             </button>
           </div>
+          
+          {isSubmitting && (
+            <div className="mt-4 text-center">
+              <p className="text-sm text-gray-600">Please wait while we create your personalized meal plans...</p>
+              <div className="mt-2 flex justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-black"></div>
+              </div>
+            </div>
+          )}
+          
+          {networkState === 'offline' && !isSubmitting && (
+            <div className="mt-4 text-center">
+              <p className="text-xs text-red-600 flex items-center justify-center gap-1">
+                <span className="inline-block w-2 h-2 bg-red-600 rounded-full"></span>
+                You are currently offline. Please reconnect to the internet to submit your form.
+              </p>
+            </div>
+          )}
         </form>
       </div>
     </>

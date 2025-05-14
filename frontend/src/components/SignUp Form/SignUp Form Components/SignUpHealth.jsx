@@ -195,6 +195,7 @@ const SignUpHealth = ({ setFormPage, register, handleSubmit, watch }) => {
               <input
                 className="input-bg bottom-shadow p-2 w-3/5 mx-auto"
                 type="text"
+                {...register("other_allergies")}
                 placeholder="Other allergies or restrictions....."
               />
             </div>

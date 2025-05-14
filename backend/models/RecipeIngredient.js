@@ -1,29 +1,16 @@
-import sqlite3 from "sqlite3";
+import { initStatements } from "./db.js";
 
-// Configure database with busy timeout and journal mode for better concurrency
-const database = new sqlite3.Database("tidyplates.db", (err) => {
-  if (err) console.error("Database connection error:", err.message);
-});
+// Get the prepared statements
+const getStatements = () => {
+  const statements = initStatements();
+  return statements.recipeIngredient;
+};
 
-// Set busy timeout to wait when database is locked (5 seconds)
-database.configure("busyTimeout", 5000);
+// Export the functions that use the statements
+export const addRecipeIngredient = {
+  run: (...args) => getStatements().add.run(...args)
+};
 
-database.exec(
-    `CREATE TABLE IF NOT EXISTS RecipeIngredient (
-  recipeID INT NOT NULL,
-  ingredientName VARCHAR NOT NULL,
-  ingredientQuantity VARCHAR NOT NULL,
-  FOREIGN KEY (recipeID) REFERENCES Recipe(recipeID)
-);`
-);
-
-export const addRecipeIngredient = database.prepare(
-    `INSERT INTO RecipeIngredient (recipeID, ingredientName, ingredientQuantity)
-    VALUES (?, ?, ?);
-    `
-);
-
-export const deleteRecipeIngredient = database.prepare(
-    `DELETE FROM RecipeIngredient WHERE recipeID = ?;
-    `
-);
+export const deleteRecipeIngredient = {
+  run: (...args) => getStatements().delete.run(...args)
+};

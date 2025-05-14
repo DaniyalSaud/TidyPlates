@@ -1,6 +1,6 @@
 export const API_KEY = "AIzaSyBialtxoHCE-qI0Lm13ojY3zZJ5MJb1524";
 
-export const MealPlan5DayGeneratePrompt = ({
+export const MealPlan3DayGeneratePrompt = ({
   age,
   gender,
   weight,
@@ -18,7 +18,7 @@ export const MealPlan5DayGeneratePrompt = ({
   meal_frequency,
   meal_timings,
 }) => {
-  let prompt = `Generate exactly 5 day meal plans, one meal plan for every day for a patient with the following conditions:
+  let prompt = `Generate exactly 3 day meal plans, one meal plan for every day for a patient with the following conditions:
 age: ${age}
 
 gender: ${gender}
@@ -62,7 +62,7 @@ meal timings: ${meal_timings || "8:00, 13:00, 19:00"}
       "date": "YYYY-MM-DD", 
       "meals": [
         {
-          "mealName": "Breakfast/Lunch/Dinner/Snack",
+          "mealName": "text",
           "time": "HH:MM",
           "recipe": "Step 1$Step 2$Step 3",
           "ingredients": ["ingredient1", "ingredient2", "ingredient3"],
@@ -72,22 +72,22 @@ meal timings: ${meal_timings || "8:00, 13:00, 19:00"}
             "carbs": 50,
             "fat": 20
           },
-          "tags": ["healthy", "quick", "vegetarian"]
+          "tags": ["text", "text", "text"]
         }
       ],
       "dailyTotals": {
-        "calories": 2000,
-        "protein": 50,
-        "carbs": 310,
-        "fat": 70
+        "calories": number,
+        "protein": number,
+        "carbs": number,
+        "fat": number
       }
     }
   ]
 }
 
-- You MUST provide EXACTLY 5 daily meal plans, numbered from planId 1 through 5.
+- You MUST provide EXACTLY 3 daily meal plans, numbered from planId 1 through 3.
 
-- Every meal should have a recipe, and the recipe should be in multiple steps, like 1,2,3 and each point should be seperated by a delimiter '$'.
+- Every meal should have a recipe, and the recipe should be in multiple steps, like 1,2,3, 4 .... and each point should be seperated by a delimiter '$'.
 
 - Every ingredient of the recipe must be listed in the "ingredients" array as strings, not objects.
 
@@ -112,7 +112,7 @@ meal timings: ${meal_timings || "8:00, 13:00, 19:00"}
 - Keep the units of intake such as gm or Kcal as described but dont include them in the JSON file. Just include the numbers.
 
 - The JSON structure MUST match exactly what is shown above since it will be parsed programmatically.
-
+- Try to be exact about ingredient quantities and dont use terms like "as needed" or "to taste", be clear and exact on the quantity.
 Note: Don't include anything else that I haven't said.`;
   
   return prompt.toString();
@@ -152,7 +152,11 @@ having goals: ${goals || "none"}
     "mealName": "${meal_type}",
     "time": "HH:MM",
     "recipe": "Step 1$Step 2$Step 3",
-    "ingredients": ["ingredient1", "ingredient2", "ingredient3"],
+    "ingredients": [
+      {"name": "ingredient1", "quantity": "1 cup"}, 
+      {"name": "ingredient2", "quantity": "100g"}, 
+      {"name": "ingredient3", "quantity": "2 tbsp"}
+    ],
     "nutritions": {
       "calories": 500,
       "protein": 30,
@@ -166,14 +170,14 @@ having goals: ${goals || "none"}
 
 - Every meal should have a recipe, and the recipe should be in multiple steps, like 1,2,3 and each point should be seperated by a delimiter '$'.
 
-- Every ingredient of the recipe must be listed in the "ingredients" array.
+- Every ingredient of the recipe must be listed in the "ingredients" array as an object containing "name" (string) and "quantity" (string, e.g., "1 cup", "100g").
 
 - Nutritional value of the meal must be included exactly in the format shown above.
 
 - Nutritional values should only include carbs, protein, fats and calories (not in KCal, but in normal unit of calorie)
 
 - There should be some tags assigned to the meal in the "tags" array.
-
+- Be specific and exact about ingredient quantities in the "quantity" field (e.g., "100g", "2 tbsp", "1 medium"). Avoid vague terms like "as needed" or "to taste".
 - There should be time assigned to the meal according to its type (Breakfast, Snack, lunch, dinner) in 24-hour format.
 
 - The daily nutrient intake targets are:
@@ -182,7 +186,7 @@ having goals: ${goals || "none"}
   - 310gm Carbohydrates
   - 2000 Kilo Calories
 
-- Keep the units of intake such as gm or Kcal as described but dont include them in the JSON file. Just include the numbers.
+- Keep the units of intake such as gm or Kcal as described but dont include them in the JSON file. Just include the numbers for nutritional values.
 
 - The JSON structure MUST match exactly what is shown above since it will be parsed programmatically.
 

@@ -1,0 +1,4 @@
+1) Sign Up Connection
+2) Specific meal generation
+3) change or manipulate meal portion size
+4) Generate Grocery list PDF

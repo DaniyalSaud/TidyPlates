@@ -1,5 +1,6 @@
 import { getAllRemindersByID, addReminder, deleteReminder } from "../models/Reminder.js";
 import sqlite3 from "sqlite3";
+import { generateId } from "../utils/idGenerator.js";
 
 // Create a database connection for transactions if needed
 const database = new sqlite3.Database("tidyplates.db", (err) => {
@@ -10,13 +11,13 @@ const database = new sqlite3.Database("tidyplates.db", (err) => {
 database.configure("busyTimeout", 5000);
 
 const generateReminderID = () => {
-    // Generate a unique reminder ID 
-    const uniqueId = Math.floor(Math.random() * Number.MAX_SAFE_INTEGER);
-    return uniqueId;
+    // Generate a unique reminder ID using our ID generator
+    return generateId('reminder');
 }
 
 const getUserReminders = async (req, res) => {
-    const { userID } = req.body;
+    // Check for userID in multiple places (query params, body, or session)
+    const userID = req.query.userID || (req.body && req.body.userID) || (req.session && req.session.userID);
 
     try {
         if (!userID) {
@@ -59,7 +60,10 @@ const getUserReminders = async (req, res) => {
 
 const addUserReminder = async (req, res) => {
     try {
-        const { userID, reminderText, timeToRemind } = req.body;
+        // Get userID from body or session if available
+        const userID = req.body.userID || (req.session && req.session.userID);
+        const { reminderText, timeToRemind } = req.body;
+        
         if (!userID || !reminderText || !timeToRemind) {
             return res.status(400).send({
                 "status": 400,
