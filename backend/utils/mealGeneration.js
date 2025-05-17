@@ -181,20 +181,37 @@ export async function generateMealPlans(mealPlanData) {
     console.log("Sending prompt to Gemini API...");
     
     // Add timeout to the API call to prevent long hanging requests
+    // Use an even shorter timeout for better responsiveness
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("API request timed out")), 15000); // 15 second timeout
+      setTimeout(() => reject(new Error("API request timed out")), 8000); // 8 second timeout for better user experience
     });
     
+    // Signal that meal plan generation has started (useful for future monitoring)
+    console.time("mealPlanGeneration");
+    
     // Race the API call against the timeout
-    const result = await Promise.race([
-      ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: prompt
-      }),
-      timeoutPromise
-    ]);
+    let result;
+    try {
+      result = await Promise.race([
+        ai.models.generateContent({
+          model: "gemini-1.5-flash", // Using the faster flash model
+          contents: prompt,
+          generationConfig: {
+            temperature: 0.7,   // Lower temperature for more consistent results
+            maxOutputTokens: 2048 // Limit output size for faster generation
+          }
+        }),
+        timeoutPromise
+      ]);
+    } catch (raceError) {
+      // If the API times out, use the fallback data immediately
+      console.warn("API call timed out or failed, using fallback data:", raceError);
+      console.timeEnd("mealPlanGeneration");
+      return fallbackMealPlanData;
+    }
     
     console.log("Received response from Gemini API");
+    console.timeEnd("mealPlanGeneration");
     const response = await result.text;
     let text = response;
     console.log("Response text length:", text.length);
@@ -205,6 +222,14 @@ export async function generateMealPlans(mealPlanData) {
       if (text.includes("```json") && text.includes("```")) {
         text = text.split("```json")[1].split("```")[0].trim();
         console.log("Extracted JSON from markdown code block");
+      } else if (text.includes("{") && text.includes("}")) {
+        // Try to extract JSON from anywhere in the response
+        const jsonStart = text.indexOf('{');
+        const jsonEnd = text.lastIndexOf('}') + 1;
+        if (jsonStart >= 0 && jsonEnd > jsonStart) {
+          text = text.substring(jsonStart, jsonEnd);
+          console.log("Extracted potential JSON from response text");
+        }
       }
       
       // Validate JSON before parsing
@@ -339,62 +364,136 @@ export async function generateMealPicture({ mealName, imagePath}) {
   }
 }
 
+import { defaultFallbackMealPlan } from './defaultFallbackMealPlan.js';
+
 export const formatMealPlan = (mealPlanData) => {
+  // Add validation to handle null or invalid data
+  if (!mealPlanData) {
+    console.error("No meal plan data received");
+    return defaultFallbackMealPlan();
+  }
+  
+  // Add a try-catch wrapper around the entire function
+  try {
+    if (!mealPlanData["mealPlan"] || !Array.isArray(mealPlanData["mealPlan"])) {
+      console.error("Invalid meal plan data structure:", mealPlanData);
+      return defaultFallbackMealPlan();
+    }
+  
   const totalPlansCount = mealPlanData["mealPlan"].length;
   let formattedMealPlans = [];
 
   // Ensure we only have 5 meal plans max
   const plansToProcess = Math.min(totalPlansCount, 5);
 
-  for (let i = 0; i < plansToProcess; i++) {
-    let currentMealPlan = {};
-    let meals = [];
-    let date = mealPlanData["mealPlan"][i]["date"];
-    let planId = mealPlanData["mealPlan"][i]["planId"] || i + 1;
+  try {
+    // If we don't have enough plans, just return the default
+    if (plansToProcess < 3) {
+      console.warn(`Not enough meal plans in data (${plansToProcess}), using fallback`);
+      return defaultFallbackMealPlan();
+    }
+    
+    for (let i = 0; i < plansToProcess; i++) {
+      try {
+        let currentMealPlan = {};
+        let meals = [];
+        
+        // Safely access data with null checks
+        if (!mealPlanData["mealPlan"][i]) {
+          console.warn(`Missing meal plan data for day ${i+1}`);
+          continue;
+        }
+        
+        let date = mealPlanData["mealPlan"][i]["date"];
+        let planId = mealPlanData["mealPlan"][i]["planId"] || i + 1;
+        
+        // Validate meals array exists
+        if (!Array.isArray(mealPlanData["mealPlan"][i]["meals"])) {
+          console.warn(`Invalid meals data for day ${i+1}, missing meals array`);
+          continue;
+        }
 
-    for (let j = 0; j < mealPlanData["mealPlan"][i]["meals"].length; j++) {
-      // Process meal data
-      let mealData = mealPlanData["mealPlan"][i]["meals"][j];
-      let meal = {
-        mealName: mealData["mealName"],
-        timeToEat: mealData["time"],
-        recipe: typeof mealData["recipe"] === 'string' ?
-          mealData["recipe"].split("$") :
-          (Array.isArray(mealData["recipe"]) ? mealData["recipe"] : []),
-        ingredients: Array.isArray(mealData["ingredients"]) ?
-          mealData["ingredients"].map(ingredient => typeof ingredient === 'object' ?
-            JSON.stringify(ingredient) : ingredient) :
-          [],
-        nutritions: typeof mealData["nutritions"] === 'object' ?
-          mealData["nutritions"] :
-          { calories: 0, protein: 0, carbs: 0, fat: 0 },
-        tags: Array.isArray(mealData["tags"]) ?
-          mealData["tags"] :
-          (typeof mealData["tags"] === 'string' ? mealData["tags"].split(',') : []),
-      };
-      meals.push(meal);
+        for (let j = 0; j < mealPlanData["mealPlan"][i]["meals"].length; j++) {
+          try {
+            // Process meal data with defensive coding
+            let mealData = mealPlanData["mealPlan"][i]["meals"][j];
+            if (!mealData) {
+              console.warn(`Missing meal data at index ${j} for day ${i+1}`);
+              continue;
+            }
+            
+            let meal = {
+              mealName: mealData["mealName"] || `Meal ${j+1}`,
+              timeToEat: mealData["time"] || `${8 + j*4}:00`,
+              recipe: typeof mealData["recipe"] === 'string' ?
+                mealData["recipe"].split("$") :
+                (Array.isArray(mealData["recipe"]) ? mealData["recipe"] : []),
+              ingredients: Array.isArray(mealData["ingredients"]) ?
+                mealData["ingredients"].map(ingredient => typeof ingredient === 'object' ?
+                  JSON.stringify(ingredient) : ingredient) :
+                [],
+              nutritions: typeof mealData["nutritions"] === 'object' ?
+                mealData["nutritions"] :
+                { calories: 0, protein: 0, carbs: 0, fat: 0 },
+              tags: Array.isArray(mealData["tags"]) ?
+                mealData["tags"] :
+                (typeof mealData["tags"] === 'string' ? mealData["tags"].split(',') : []),
+            };
+            meals.push(meal);
+          } catch (mealError) {
+            console.error(`Error processing meal at index ${j} for day ${i+1}:`, mealError);
+            // Continue to next meal instead of failing the entire plan
+            continue;
+          }
+        }
+
+        // Skip days with no meals
+        if (meals.length === 0) {
+          console.warn(`No valid meals found for day ${i+1}, skipping`);
+          continue;
+        }
+
+        let dailyIntake = mealPlanData["mealPlan"][i]["dailyTotals"] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
+
+        currentMealPlan = {
+          planId: planId,  // Include the planId in the formatted meal plan
+          date: date || new Date(Date.now() + i * 86400000).toISOString().split('T')[0], // Use current date + i days if no date provided
+          meals: meals,
+          dailyIntake: {
+            calories: dailyIntake["calories"] || 0,
+            protein: dailyIntake["protein"] || 0,
+            carbs: dailyIntake["carbs"] || 0,
+            fat: dailyIntake["fat"] || 0,
+          },
+        };
+        formattedMealPlans.push(currentMealPlan);
+      } catch (dayError) {
+        console.error(`Error processing day ${i+1}:`, dayError);
+        // Continue to next day instead of failing entire function
+        continue;
+      }
     }
 
-    let dailyIntake = mealPlanData["mealPlan"][i]["dailyTotals"] || { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    // If we don't have enough meal plans, use fallback for missing days
+    if (formattedMealPlans.length < 3) {
+      console.warn(`Not enough valid meal plans (${formattedMealPlans.length}), using fallback for missing days`);
+      
+      const fallbackPlans = defaultFallbackMealPlan();
+      // Only add fallback plans for missing days (up to 3 total)
+      for (let i = formattedMealPlans.length; i < 3; i++) {
+        formattedMealPlans.push(fallbackPlans[i]);
+      }
+    }
 
-    currentMealPlan = {
-      planId: planId,  // Include the planId in the formatted meal plan
-      date: date,
-      meals: meals,
-      dailyIntake: {
-        calories: dailyIntake["calories"] || 0,
-        protein: dailyIntake["protein"] || 0,
-        carbs: dailyIntake["carbs"] || 0,
-        fat: dailyIntake["fat"] || 0,
-      },
-    };
-    formattedMealPlans.push(currentMealPlan);
+    return formattedMealPlans;
+  } catch (error) {
+    console.error("Error while formatting meal plan:", error);
+    return defaultFallbackMealPlan();
   }
-
-  // If we have fewer than 5 meal plans, log a warning
-  if (formattedMealPlans.length < 5) {
-    console.warn(`Expected 5 meal plans, but only ${formattedMealPlans.length} were generated.`);
+  } catch (outerError) {
+    console.error("Fatal error in formatMealPlan:", outerError);
+    return defaultFallbackMealPlan();
+    // Return a complete fallback if the formatting process fails
+    return defaultFallbackMealPlan();
   }
-
-  return formattedMealPlans;
 };

@@ -86,17 +86,31 @@ function SignUpForm() {
         console.log('Submitting form data:', formattedData);
         
         try {
+            console.log('Starting account registration request...');
+            // Increase the timeout for account creation
             const response = await fetch('/api/account/register', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(formattedData),
-                // Add timeout to prevent hanging requests
-                signal: AbortSignal.timeout(30000) // 30 second timeout
+                // Use a longer timeout since account creation involves meal generation
+                signal: AbortSignal.timeout(60000) // 60 second timeout
             });
 
-            const result = await response.json();
+            // Check if the response is valid before parsing JSON
+            const responseText = await response.text();
+            console.log('Server response:', response.status, responseText.substring(0, 200));
+            let result;
+            
+            try {
+                // Try to parse the response as JSON
+                result = responseText && responseText.trim() ? JSON.parse(responseText) : {};
+            } catch (parseError) {
+                console.error("Failed to parse server response:", parseError);
+                console.error("Raw response:", responseText);
+                throw new Error(`Server returned invalid JSON: ${responseText.substring(0, 100)}...`);
+            }
             
             if (response.status === 201) {
                 // Successful account creation
@@ -122,11 +136,38 @@ function SignUpForm() {
             if (!navigator.onLine) {
                 setError('You are offline. Please check your internet connection and try again.');
             } else if (error.name === 'AbortError') {
-                setError('Request timed out. The server might be busy, please try again.');
+                setError('Request timed out. The server might be busy, please try again with fewer preferences.');
             } else if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
                 setError('Unable to connect to the server. Please make sure the backend is running and try again.');
+            } else if (error.message && (error.message.includes('socket hang up') || error.message.includes('ECONNRESET'))) {
+                setError('The connection was interrupted. This happens when meal plan generation takes too long. Try again with fewer preferences and allergies.');
+                
+                // Auto-retry once with a delay for better user experience
+                if (retryCount < 1) {
+                    setTimeout(() => {
+                        console.log('Auto-retrying account creation with simplified form...');
+                        // Make a copy of the form data with fewer preferences
+                        const simplifiedData = { ...watch() };
+                        
+                        // Simplify data before retrying
+                        if (Array.isArray(simplifiedData.prefIngredients)) {
+                            simplifiedData.prefIngredients = simplifiedData.prefIngredients.slice(0, 2);
+                        }
+                        if (Array.isArray(simplifiedData.goals)) {
+                            simplifiedData.goals = simplifiedData.goals.slice(0, 2);
+                        }
+                        
+                        onSubmit(simplifiedData);
+                    }, 2000);
+                }
+            } else if (error.message && error.message.includes('invalid JSON')) {
+                setError('The server response was invalid. This could be due to server maintenance. Please try again in a few moments.');
+            } else if (error.name === 'SyntaxError') {
+                setError('There was a problem with the server response. Try again later or contact support if the issue persists.');
             } else {
-                setError('A network error occurred. Please check your connection and try again.');
+                // Log the actual error for better debugging
+                console.error('Detailed error:', error);
+                setError('A server error occurred. This might be because meal plan generation is taking too long. Please try again with simpler preferences.');
             }
             // Increment retry count for metrics
             setRetryCount(prev => prev + 1);

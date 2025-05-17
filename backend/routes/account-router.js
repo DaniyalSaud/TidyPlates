@@ -5,8 +5,12 @@ import MealPlanRouter from "./meal-plan-router.js"
 import MealsRouter from "./meal-router.js"
 import TestRouter from "./test-router.js"
 import UserRouter from './user-router.js'
+import accountTimeoutHandler from '../middleware/account-timeout-handler.js';
 
 const router = express.Router();
+
+// Apply the account timeout handler middleware
+router.use(accountTimeoutHandler);
 
 // Add error handling middleware for JSON parsing errors
 router.use((err, req, res, next) => {

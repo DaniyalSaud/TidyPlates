@@ -1,0 +1,8 @@
+No more accounts can be created because we have ran out of free credits for AI, but you can still try.
+use already created account.
+
+Email: danialsaud7@gmail.com
+Password: danial2024
+
+
+If frontend libs refuse to install, use --legacy-peer-deps flag.

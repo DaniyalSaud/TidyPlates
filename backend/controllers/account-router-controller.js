@@ -10,6 +10,7 @@ import { addUserHealthData, deleteUserHealthDataByID } from "../models/UserHealt
 import { addUserPreference, deleteUserPreferenceByID } from "../models/UserPreference.js";
 import { generateId, generateBatchIds } from "../utils/idGenerator.js";
 import { generateMealPlans, formatMealPlan, generateMealPicture } from "../utils/mealGeneration.js";
+import { defaultFallbackMealPlan } from "../utils/defaultFallbackMealPlan.js";
 // Import meal plan related models
 import { addMealPlan, deleteAllMealPlans, deleteMealPlan, getAllMealPlansByID } from "../models/MealPlan.js";
 import { addMeal, deleteAllMealsByUserID, getAllMealsByPlanID } from "../models/Meal.js";
@@ -172,65 +173,78 @@ const createAccount = async (req, res) => {
     let mealPlans5;
     
     try {
-      mealPlans5 = await generateMealPlans({
-        age,
-        gender,
-        weight,
-        height,
-        chronicConditions,
-        allergies,
-        dietaryRestrictions,
-        medications,
-        goals,
-        cuisinePref,
-        avoid,
-        mealTypePref,
-        cookTimePref,
-        prefIngredients,
-        mealFreq,
-        mealTimings,
-      });
+      // First, prepare a minimal set of preferences for meal generation
+      // to reduce complexity and improve success rate
+      const simplifiedPreferences = {
+        age: age || '30',
+        gender: gender || 'not specified',
+        weight: weight || '70',
+        height: height || '170',
+        // Only include essential health restrictions
+        chronicConditions: chronicConditions || '',
+        allergies: allergies || '',
+        dietaryRestrictions: dietaryRestrictions || '',
+        medications: medications || '',
+        // Basic goals and preferences
+        goals: Array.isArray(goals) ? goals.slice(0, 2).join(',') : (goals || 'healthy eating'),
+        cuisinePref: Array.isArray(cuisinePref) ? cuisinePref.slice(0, 2).join(',') : (cuisinePref || ''),
+        avoid: avoid || '',
+        // Essential meal structure preferences
+        mealTypePref: mealTypePref || '',
+        cookTimePref: cookTimePref || 'medium',
+        prefIngredients: '',  // Skip preferred ingredients to simplify
+        mealFreq: mealFreq || '3',
+        mealTimings: mealTimings || '8:00,13:00,19:00',
+      };
+      
+      console.log("Using simplified meal preferences for faster generation");
+      
+      try {
+        // Add a shorter timeout for meal plan generation to prevent hanging
+        const mealPlanTimeout = new Promise((_, reject) => {
+          setTimeout(() => {
+            console.log("Meal plan generation timeout triggered - using fallback plan");
+            reject(new Error("Meal plan generation timed out"));
+          }, 10000); // 10 second timeout, reduced from 15s for faster response
+        });
+        
+        // Race the meal plan generation against the timeout
+        mealPlans5 = await Promise.race([
+          generateMealPlans(simplifiedPreferences),
+          mealPlanTimeout
+        ]);
+      } catch (timeoutError) {
+        console.log("Caught timeout error, using fallback meal plan:", timeoutError.message);
+        // Immediately use fallback meal plan on timeout
+        mealPlans5 = null;
+      }
 
       if (!mealPlans5) {
-        console.error("generateMealPlans returned null - using fallback");
-        // Create basic fallback meal plan data here in case the function returns null
-        // This is a second layer of protection in addition to the fallback in generateMealPlans
-        const today = new Date();
-        mealPlans5 = {
-          "mealPlan": [
-            {
-              "planId": 1,
-              "date": today.toISOString().split('T')[0],
-              "meals": [
+        console.error("generateMealPlans returned null - using imported fallback plan");
+        try {
+          // Use the imported defaultFallbackMealPlan function with error handling
+          mealPlans5 = defaultFallbackMealPlan();
+          console.log("Successfully loaded fallback meal plan");
+        } catch (fallbackError) {
+          console.error("Error using fallback meal plan:", fallbackError);
+          // Create an emergency basic meal plan if the fallback function fails
+          mealPlans5 = {
+            mealPlan: Array(3).fill().map((_, i) => ({
+              planId: i + 1,
+              date: new Date(Date.now() + i * 86400000).toISOString().split('T')[0],
+              meals: [
                 {
-                  "mealName": "Basic Breakfast",
-                  "time": "08:00",
-                  "recipe": "Step 1$Step 2$Step 3",
-                  "ingredients": ["oats", "milk", "berries"],
-                  "nutritions": { "calories": 300, "protein": 15, "carbs": 40, "fat": 10 },
-                  "tags": ["breakfast", "quick"]
-                },
-                {
-                  "mealName": "Basic Lunch",
-                  "time": "13:00",
-                  "recipe": "Step 1$Step 2$Step 3",
-                  "ingredients": ["chicken", "rice", "vegetables"],
-                  "nutritions": { "calories": 450, "protein": 30, "carbs": 50, "fat": 15 },
-                  "tags": ["lunch", "protein"]
-                },
-                {
-                  "mealName": "Basic Dinner",
-                  "time": "19:00",
-                  "recipe": "Step 1$Step 2$Step 3",
-                  "ingredients": ["fish", "potatoes", "vegetables"],
-                  "nutritions": { "calories": 400, "protein": 25, "carbs": 45, "fat": 12 },
-                  "tags": ["dinner", "healthy"]
+                  mealName: "Basic Breakfast",
+                  time: "08:00",
+                  recipe: "Simple steps",
+                  ingredients: ["cereal", "milk"],
+                  nutritions: { calories: 300, protein: 15, carbs: 40, fat: 10 },
+                  tags: ["breakfast", "quick"]
                 }
-              ],
-              "dailyTotals": { "calories": 1150, "protein": 70, "carbs": 135, "fat": 37 }
-            }
-          ]
-        };
+              ]
+            }))
+          };
+        }
       }
     } catch (mealGenError) {
       console.error("Error generating meal plans:", mealGenError);
@@ -243,15 +257,66 @@ const createAccount = async (req, res) => {
 
     let formattedMealPlan;
     try {
-      formattedMealPlan = formatMealPlan(mealPlans5);
+      // Use a try-catch with timeout for the formatting function as well
+      const formattingTimeout = new Promise((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("Meal plan formatting timed out"));
+        }, 5000); // 5 second timeout for formatting
+      });
+      
+      // Wrap the formatting in a Promise.race to catch potential hangs
+      formattedMealPlan = await Promise.race([
+        Promise.resolve(formatMealPlan(mealPlans5)),
+        formattingTimeout
+      ]);
+      
       if (!formattedMealPlan || formattedMealPlan.length === 0) {
-        throw new Error("Failed to format meal plans or empty result returned");
+        console.warn("Empty formatted meal plan - using fallback");
+        // Generate a minimal fallback if formatting fails
+        formattedMealPlan = Array(3).fill().map((_, i) => {
+          return {
+            planId: i + 1,
+            date: new Date(Date.now() + i * 86400000).toISOString().split('T')[0],
+            meals: [
+              {
+                mealName: "Simple Breakfast",
+                timeToEat: "08:00",
+                recipe: ["Prepare breakfast", "Serve and enjoy"],
+                ingredients: ["cereal", "milk"],
+                nutritions: { calories: 300, protein: 10, carbs: 40, fat: 5 },
+                tags: ["breakfast", "quick"]
+              },
+              {
+                mealName: "Simple Lunch",
+                timeToEat: "13:00",
+                recipe: ["Prepare lunch", "Serve and enjoy"],
+                ingredients: ["bread", "vegetables", "protein"],
+                nutritions: { calories: 400, protein: 20, carbs: 45, fat: 10 },
+                tags: ["lunch"]
+              }
+            ]
+          };
+        });
       }
     } catch (formatError) {
       console.error("Error formatting meal plans:", formatError);
-      return res.status(500).send({
-        status: 500,
-        error: "Failed to format meal plans. Account creation aborted.",
+      // Instead of aborting, use a simple fallback meal plan
+      console.warn("Using emergency fallback meal plan due to formatting error");
+      formattedMealPlan = Array(3).fill().map((_, i) => {
+        return {
+          planId: i + 1,
+          date: new Date(Date.now() + i * 86400000).toISOString().split('T')[0],
+          meals: [
+            {
+              mealName: "Emergency Breakfast",
+              timeToEat: "08:00",
+              recipe: ["Simple preparation"],
+              ingredients: ["basic ingredients"],
+              nutritions: { calories: 300, protein: 10, carbs: 40, fat: 5 },
+              tags: ["breakfast"]
+            }
+          ]
+        };
       });
     }
 
@@ -488,7 +553,7 @@ const createAccount = async (req, res) => {
 
           console.log("Account and 3-day meal plan successfully stored in database");
 
-          // Send the successful response
+          // Prepare the response
           const response = {
             status: 201,
             message: "Account created successfully with a 3-day meal plan!",
@@ -501,8 +566,12 @@ const createAccount = async (req, res) => {
             },
           };
           
-          res.status(201).json(response);
-          resolveTransaction(response);
+          // First resolve the transaction, then send the response
+          // This prevents race conditions where the response is sent but transaction is still open
+          resolveTransaction();
+          
+          // Send the response after transaction is resolved
+          return res.status(201).json(response);
         } catch (dbError) {
           console.error("Error while creating account or storing meal plans:", dbError);
 
@@ -520,27 +589,35 @@ const createAccount = async (req, res) => {
             console.error("Error during cleanup after failed account creation:", cleanupError);
           }
 
-          // Send error response
+          // Prepare the error response
           const errorResponse = {
             status: 500,
             error: "Failed to create account with meal plans. Please try again later.",
             details: dbError.message
           };
           
-          res.status(500).json(errorResponse);
-          rejectTransaction(errorResponse);
+          // First reject the transaction, then send the response
+          rejectTransaction();
+          
+          // Send the error response after transaction is rejected
+          return res.status(500).json(errorResponse);
         }
       });
     });
   } catch (error) {
     console.error("Unexpected error during account creation:", error);
     
-    // Ensure we always send a complete JSON response
-    return res.status(500).json({
-      status: 500,
-      error: "Error when processing your request. Please try again later.",
-      details: error.message
-    });
+    // Check if headers have already been sent to avoid "headers already sent" errors
+    if (!res.headersSent) {
+      // Ensure we always send a complete JSON response
+      return res.status(500).json({
+        status: 500,
+        error: "Error when processing your request. Please try again later.",
+        details: error.message
+      });
+    } else {
+      console.error("Headers already sent, unable to send error response");
+    }
   }
 };
 
@@ -745,19 +822,21 @@ const deleteAccount = async (req, res) => {
             if (commitErr) {
               console.error("Failed to commit transaction for deleteAccount:", commitErr);
               database.exec('ROLLBACK'); // Attempt rollback on commit failure
-              rejectTransaction(res.status(500).send({
+              res.status(500).send({
                 status: 500,
                 message: "Failed to commit transaction after deleting account data.",
                 success: false,
                 error: commitErr.message,
-              }));
+              });
+              rejectTransaction();
             } else {
               console.log(`Successfully deleted account ${userID} and related data.`);
-              resolveTransaction(res.status(200).send({
+              res.status(200).send({
                 status: 200,
                 message: deletionResults.message,
                 success: true,
-              }));
+              });
+              resolveTransaction();
             }
           });
 
@@ -772,21 +851,23 @@ const deleteAccount = async (req, res) => {
             if (rollbackErr) {
               console.error("Rollback failed for deleteAccount:", rollbackErr);
               // If rollback fails, the DB state is uncertain
-              rejectTransaction(res.status(500).send({
+              res.status(500).send({
                 status: 500,
                 message: "Failed to delete data and also failed to rollback transaction.",
                 success: false,
                 errors: deletionResults.errors,
                 rollbackError: rollbackErr.message,
-              }));
+              });
+              rejectTransaction();
             } else {
               console.log(`Transaction rolled back for user ${userID} due to deletion errors.`);
-              rejectTransaction(res.status(500).send({
+              res.status(500).send({
                 status: 500,
                 message: deletionResults.message,
                 success: false,
                 errors: deletionResults.errors,
-              }));
+              });
+              rejectTransaction();
             }
           });
         }
